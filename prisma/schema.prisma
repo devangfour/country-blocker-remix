@@ -30,3 +30,20 @@ model Session {
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
 }
+
+model CountryBlockerSettings {
+  id                   String   @id @default(cuid())
+  shop                 String   @unique
+  blockingMode         String   @default("disabled")
+  countryList          String   @default("")
+  blockPageTitle       String   @default("Access Restricted")
+  blockPageDescription String   @default("This store is not available in your country.")
+  textColor           String   @default("#000000")
+  backgroundColor     String   @default("#FFFFFF")
+  boxBackgroundColor  String   @default("#e86161")
+  logoUrl             String?
+  blockedIpAddresses  String   @default("")
+  appEmbedEnabled     Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

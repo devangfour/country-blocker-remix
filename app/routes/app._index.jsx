@@ -1,336 +1,342 @@
-import { useEffect } from "react";
-import { useFetcher } from "@remix-run/react";
 import {
+  Card,
   Page,
   Layout,
-  Text,
-  Card,
   Button,
-  BlockStack,
+  Banner,
   Box,
-  List,
-  Link,
   InlineStack,
+  Text,
+  ProgressBar,
+  BlockStack,
+  Badge
 } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { TitleBar } from "@shopify/app-bridge-react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
-export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const { shop } = session;
 
-  return null;
-};
+  const formData = await request.formData();
+  const action = formData.get("action");
 
-export const action = async ({ request }) => {
+  if (action === "mark_embed_enabled") {
+    // Update or create settings with app embed enabled
+    await prisma.countryBlockerSettings.upsert({
+      where: { shop },
+      update: { appEmbedEnabled: true },
+      create: {
+        shop,
+        appEmbedEnabled: true,
+      }
+    });
+
+    return json({ success: true });
+  }
+
+  if (action === "mark_embed_disabled") {
+    // Update or create settings with app embed disabled
+    await prisma.countryBlockerSettings.upsert({
+      where: { shop },
+      update: { appEmbedEnabled: false },
+      create: {
+        shop,
+        appEmbedEnabled: false,
+      }
+    });
+
+    return json({ success: true });
+  }
+
+  return json({ success: false });
+}
+
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const { shop } = session;
+
+  // Get shop info
   const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
+  const shopResponse = await admin.graphql(`
+    query {
+      shop {
+        name
+        primaryDomain {
+          url
         }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
-  const product = responseJson.data.productCreate.product;
-  const variantId = product.variants.edges[0].node.id;
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyRemixTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
+        plan {
+          displayName
         }
       }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-  const variantResponseJson = await variantResponse.json();
+    }
+  `);
 
-  return {
-    product: responseJson.data.productCreate.product,
-    variant: variantResponseJson.data.productVariantsBulkUpdate.productVariants,
-  };
-};
+  const shopData = await shopResponse.json();
+
+  // Get settings from database to check app embed status
+  const settings = await prisma.countryBlockerSettings.findFirst({
+    where: { shop }
+  });
+
+  return json({
+    shop: shopData.data.shop,
+    appEmbedEnabled: settings?.appEmbedEnabled || false,
+  });
+}
 
 export default function Index() {
-  const fetcher = useFetcher();
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
-  const productId = fetcher.data?.product?.id.replace(
-    "gid://shopify/Product/",
-    "",
-  );
+  const { shop, appEmbedEnabled } = useLoaderData();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (productId) {
-      shopify.toast.show("Product created");
+  // Get progress from localStorage
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("country-blocker-progress");
+      return saved ? JSON.parse(saved) : [];
     }
-  }, [productId, shopify]);
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+    return [];
+  });
+
+  // Auto-redirect to settings if embed is enabled but settings task is not complete
+  useEffect(() => {
+    if (appEmbedEnabled && !completedTasks.includes("configure-settings")) {
+      // Small delay to allow the page to render first
+      const timer = setTimeout(() => {
+        navigate("/app/settings");
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [appEmbedEnabled, completedTasks, navigate]);
+
+  // Save progress to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("country-blocker-progress", JSON.stringify(completedTasks));
+    }
+  }, [completedTasks]);
+
+  const markTaskComplete = useCallback((taskId) => {
+    setCompletedTasks(prev => [...prev, taskId]);
+  }, []);
+
+  // Check if app embed is enabled
+  const hasEnabledEmbed = appEmbedEnabled;
+  const shouldRedirect = appEmbedEnabled && !completedTasks.includes("configure-settings");
+
+  const tasks = [
+    {
+      id: "setup-embedded",
+      title: "Setup App Embed",
+      description: hasEnabledEmbed 
+        ? "App embed is active - ready to use" 
+        : "Enable app embed in your theme to automatically block countries",
+      action: hasEnabledEmbed ? "Configure" : "Enable",
+      url: hasEnabledEmbed 
+        ? "/app/settings" 
+        : `/admin/themes/current/editor?addAppBlockId=country-blocker&target=appEmbeds`,
+      required: true,
+      completed: hasEnabledEmbed,
+    },
+    {
+      id: "configure-settings",
+      title: "Configure Country Blocking",
+      description: "Set up which countries to block and customize the block message",
+      action: "Configure",
+      url: "/app/settings",
+      required: true,
+    }
+  ];
+
+  const completedCount = tasks.filter(task => task.completed || completedTasks.includes(task.id)).length;
+  const progressPercentage = (completedCount / tasks.length) * 100;
 
   return (
     <Page>
-      <TitleBar title="Remix app template">
-        <button variant="primary" onClick={generateProduct}>
-          Generate a product
-        </button>
-      </TitleBar>
-      <BlockStack gap="500">
-        <Layout>
-          <Layout.Section>
+      <TitleBar title="Country Blocker" />
+
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="500">
+            {/* Redirect Banner */}
+            {shouldRedirect && (
+              <Banner
+                title="Redirecting to Settings"
+                status="success"
+              >
+                <p>
+                  App embed is enabled! Redirecting you to the settings page to configure your country blocking...
+                </p>
+              </Banner>
+            )}
+
+            {/* Welcome Banner */}
+            {!shouldRedirect && (
+              <Banner
+                title="Welcome to Country Blocker"
+                status="info"
+              >
+                <p>
+                  Protect your store by blocking access from specific countries.
+                  Get started by configuring your blocking settings below.
+                </p>
+              </Banner>
+            )}
+
+            {/* Progress Card */}
             <Card>
-              <BlockStack gap="500">
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Congrats on creating a new Shopify app 🎉
+              <BlockStack gap="400">
+                <InlineStack align="space-between">
+                  <Text variant="headingMd" as="h2">
+                    Setup Progress
                   </Text>
-                  <Text variant="bodyMd" as="p">
-                    
-                    {/* redirect to additional page */}
-                    <Link
-                      url="/app/additional"
-                    >
-                      Go to additional page
-                    </Link>
-                    <br />
-                    This embedded app template uses{" "}
-                    <Link
-                      url="https://shopify.dev/docs/apps/tools/app-bridge"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      App Bridge
-                    </Link>{" "}
-                    interface examples like an{" "}
-                    <Link url="/app/additional" removeUnderline>
-                      additional page in the app nav
-                    </Link>
-                    , as well as an{" "}
-                    <Link
-                      url="https://shopify.dev/docs/api/admin-graphql"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      Admin GraphQL
-                    </Link>{" "}
-                    mutation demo, to provide a starting point for app
-                    development.
-                  </Text>
-                </BlockStack>
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Get started with products
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    Generate a product with GraphQL and get the JSON output for
-                    that product. Learn more about the{" "}
-                    <Link
-                      url="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      productCreate
-                    </Link>{" "}
-                    mutation in our API references.
-                  </Text>
-                </BlockStack>
-                <InlineStack gap="300">
-                  <Button loading={isLoading} onClick={generateProduct}>
-                    Generate a product
-                  </Button>
-                  {fetcher.data?.product && (
-                    <Button
-                      url={`shopify:admin/products/${productId}`}
-                      target="_blank"
-                      variant="plain"
-                    >
-                      View product
-                    </Button>
-                  )}
+                  <Badge status={completedCount === tasks.length ? "success" : "attention"}>
+                    {completedCount} of {tasks.length} completed
+                  </Badge>
                 </InlineStack>
-                {fetcher.data?.product && (
-                  <>
-                    <Text as="h3" variant="headingMd">
-                      {" "}
-                      productCreate mutation
+
+                <Box>
+                  <ProgressBar progress={progressPercentage} size="small" />
+                  <Box paddingBlockStart="200">
+                    <Text variant="bodySm" tone="subdued">
+                      {Math.round(progressPercentage)}% complete
                     </Text>
-                    <Box
-                      padding="400"
-                      background="bg-surface-active"
-                      borderWidth="025"
-                      borderRadius="200"
-                      borderColor="border"
-                      overflowX="scroll"
-                    >
-                      <pre style={{ margin: 0 }}>
-                        <code>
-                          {JSON.stringify(fetcher.data.product, null, 2)}
-                        </code>
-                      </pre>
-                    </Box>
-                    <Text as="h3" variant="headingMd">
-                      {" "}
-                      productVariantsBulkUpdate mutation
-                    </Text>
-                    <Box
-                      padding="400"
-                      background="bg-surface-active"
-                      borderWidth="025"
-                      borderRadius="200"
-                      borderColor="border"
-                      overflowX="scroll"
-                    >
-                      <pre style={{ margin: 0 }}>
-                        <code>
-                          {JSON.stringify(fetcher.data.variant, null, 2)}
-                        </code>
-                      </pre>
-                    </Box>
-                  </>
-                )}
+                  </Box>
+                </Box>
               </BlockStack>
             </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="500">
+
+            {/* Development Helper - Remove in production */}
+            {process.env.NODE_ENV === 'development' && (
               <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    App template specs
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h3">Development Helper</Text>
+                  <Text variant="bodySm">
+                    Database Status - App Embed Enabled: {hasEnabledEmbed ? 'Yes' : 'No'}
                   </Text>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Framework
-                      </Text>
-                      <Link
-                        url="https://remix.run"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        Remix
-                      </Link>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Database
-                      </Text>
-                      <Link
-                        url="https://www.prisma.io/"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        Prisma
-                      </Link>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Interface
-                      </Text>
-                      <span>
-                        <Link
-                          url="https://polaris.shopify.com"
-                          target="_blank"
-                          removeUnderline
-                        >
-                          Polaris
-                        </Link>
-                        {", "}
-                        <Link
-                          url="https://shopify.dev/docs/apps/tools/app-bridge"
-                          target="_blank"
-                          removeUnderline
-                        >
-                          App Bridge
-                        </Link>
-                      </span>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        API
-                      </Text>
-                      <Link
-                        url="https://shopify.dev/docs/api/admin-graphql"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        GraphQL API
-                      </Link>
-                    </InlineStack>
-                  </BlockStack>
+                  <InlineStack gap="300">
+                    <Button
+                      variant="secondary"
+                      disabled={hasEnabledEmbed}
+                      onClick={async () => {
+                        const formData = new FormData();
+                        formData.append("action", "mark_embed_enabled");
+                        const response = await fetch(window.location.href, {
+                          method: "POST",
+                          body: formData,
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                          window.location.reload();
+                        } else {
+                          alert("Failed to update database");
+                        }
+                      }}
+                    >
+                      Enable in Database
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!hasEnabledEmbed}
+                      onClick={async () => {
+                        const formData = new FormData();
+                        formData.append("action", "mark_embed_disabled");
+                        const response = await fetch(window.location.href, {
+                          method: "POST",
+                          body: formData,
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                          window.location.reload();
+                        } else {
+                          alert("Failed to update database");
+                        }
+                      }}
+                    >
+                      Disable in Database
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
               </Card>
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Next steps
-                  </Text>
-                  <List>
-                    <List.Item>
-                      Build an{" "}
-                      <Link
-                        url="https://shopify.dev/docs/apps/getting-started/build-app-example"
-                        target="_blank"
-                        removeUnderline
+            )}
+
+            {/* Setup Tasks */}
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">
+                  Setup Tasks
+                </Text>
+
+                <BlockStack gap="300">
+                  {tasks.map((task) => {
+                    const isCompleted = task.completed || completedTasks.includes(task.id);
+
+                    return (
+                      <Box
+                        key={task.id}
+                        padding="400"
+                        borderWidth="0165"
+                        borderColor="border-subdued"
+                        borderRadius="200"
                       >
-                        {" "}
-                        example app
-                      </Link>{" "}
-                      to get started
-                    </List.Item>
-                    <List.Item>
-                      Explore Shopify’s API with{" "}
-                      <Link
-                        url="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        GraphiQL
-                      </Link>
-                    </List.Item>
-                  </List>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="center">
+                            {/* <Icon
+                              source={isCompleted ? CheckCircleIcon : CircleIcon}
+                              tone={isCompleted ? "success" : "subdued"}
+                            /> */}
+                            <BlockStack gap="100">
+                              <InlineStack gap="200" blockAlign="center">
+                                <Text variant="bodyMd" fontWeight="semibold">
+                                  {task.title}
+                                </Text>
+                                {task.required && (
+                                  <Badge tone="critical" size="small">Required</Badge>
+                                )}
+                                {isCompleted && (
+                                  <Badge tone="success" size="small">Complete</Badge>
+                                )}
+                              </InlineStack>
+                              <Text variant="bodySm" tone="subdued">
+                                {task.description}
+                              </Text>
+                            </BlockStack>
+                          </InlineStack>
+
+                          <Button
+                            variant={isCompleted ? "secondary" : "primary"}
+                            onClick={() => {
+                              if (!isCompleted && !task.completed) {
+                                markTaskComplete(task.id);
+                              }
+                              
+                              // Handle external URLs (like admin theme editor)
+                              if (task.url.startsWith('/admin/')) {
+                                alert(`${shop.primaryDomain.url}${task.url}`);
+                                window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
+                              } else {
+                                navigate(task.url);
+                              }
+                            }}
+                          >
+                            {isCompleted ? "Review" : task.action}
+                          </Button>
+                        </InlineStack>
+                      </Box>
+                    );
+                  })}
                 </BlockStack>
-              </Card>
-            </BlockStack>
-          </Layout.Section>
-        </Layout>
-      </BlockStack>
+              </BlockStack>
+            </Card>
+
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
     </Page>
   );
 }
