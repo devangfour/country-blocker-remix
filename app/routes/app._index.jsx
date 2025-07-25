@@ -17,39 +17,36 @@ import { useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
+import connectDB from "../db.server.js";
+import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
   const { shop } = session;
+
+  await connectDB();
 
   const formData = await request.formData();
   const action = formData.get("action");
 
   if (action === "mark_embed_enabled") {
     // Update or create settings with app embed enabled
-    await prisma.countryBlockerSettings.upsert({
-      where: { shop },
-      update: { appEmbedEnabled: true },
-      create: {
-        shop,
-        appEmbedEnabled: true,
-      }
-    });
+    await CountryBlockerSettings.findOneAndUpdate(
+      { shop },
+      { appEmbedEnabled: true },
+      { upsert: true, new: true }
+    );
 
     return json({ success: true });
   }
 
   if (action === "mark_embed_disabled") {
     // Update or create settings with app embed disabled
-    await prisma.countryBlockerSettings.upsert({
-      where: { shop },
-      update: { appEmbedEnabled: false },
-      create: {
-        shop,
-        appEmbedEnabled: false,
-      }
-    });
+    await CountryBlockerSettings.findOneAndUpdate(
+      { shop },
+      { appEmbedEnabled: false },
+      { upsert: true, new: true }
+    );
 
     return json({ success: true });
   }
@@ -60,6 +57,8 @@ export async function action({ request }) {
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const { shop } = session;
+
+  await connectDB();
 
   // Get shop info
   const { admin } = await authenticate.admin(request);
@@ -80,9 +79,7 @@ export async function loader({ request }) {
   const shopData = await shopResponse.json();
 
   // Get settings from database to check app embed status
-  const settings = await prisma.countryBlockerSettings.findFirst({
-    where: { shop }
-  });
+  const settings = await CountryBlockerSettings.findOne({ shop });
 
   return json({
     shop: shopData.data.shop,

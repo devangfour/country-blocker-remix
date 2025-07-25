@@ -4,17 +4,18 @@ import { useState, useCallback, useEffect } from 'react';
 import { useLoaderData, useActionData, useSubmit, useNavigation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
+import connectDB from "../db.server.js";
+import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 
 // Loader function
 export async function loader({ request }) {
     const { admin, session } = await authenticate.admin(request);
 
+    await connectDB();
+
     try {
         // Try to get settings from database first
-        let settings = await prisma.countryBlockerSettings.findUnique({
-            where: { shop: session.shop },
-        });
+        let settings = await CountryBlockerSettings.findOne({ shop: session.shop });
 
         // If no settings in database, try to get from metafields
         if (!settings) {
@@ -42,11 +43,9 @@ export async function loader({ request }) {
             if (metafieldValue) {
                 const metafieldSettings = JSON.parse(metafieldValue);
                 // Create settings in database from metafield data
-                settings = await prisma.countryBlockerSettings.create({
-                    data: {
-                        shop: session.shop,
-                        ...metafieldSettings,
-                    },
+                settings = await CountryBlockerSettings.create({
+                    shop: session.shop,
+                    ...metafieldSettings,
                 });
             }
         }
@@ -80,6 +79,8 @@ export async function loader({ request }) {
 // Action function
 export async function action({ request }) {
     const { admin, session } = await authenticate.admin(request);
+
+    await connectDB();
 
     if (request.method !== "POST") {
         return json({ error: "Method not allowed" }, { status: 405 });
@@ -141,17 +142,18 @@ export async function action({ request }) {
         }; console.log(`Saving settings for store: ${session.shop}`, settings);
 
         // Save to database
-        const savedSettings = await prisma.countryBlockerSettings.upsert({
-            where: { shop: session.shop },
-            update: {
+        const savedSettings = await CountryBlockerSettings.findOneAndUpdate(
+            { shop: session.shop },
+            {
                 ...settings,
                 updatedAt: new Date(),
             },
-            create: {
-                shop: session.shop,
-                ...settings,
-            },
-        });
+            { 
+                upsert: true, 
+                new: true,
+                setDefaultsOnInsert: true
+            }
+        );
 
         // Save to Shopify App Metafields
         // First, get the shop ID

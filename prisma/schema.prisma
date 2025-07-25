@@ -5,23 +5,21 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// MongoDB datasource configuration
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
-  id            String    @id
+  id            String    @id @map("_id")
   shop          String
   state         String
   isOnline      Boolean   @default(false)
   scope         String?
   expires       DateTime?
   accessToken   String
-  userId        BigInt?
+  userId        String?   // Changed from BigInt to String for MongoDB
   firstName     String?
   lastName      String?
   email         String?
@@ -29,10 +27,12 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
+
+  @@map("sessions")
 }
 
 model CountryBlockerSettings {
-  id                   String   @id @default(cuid())
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
   shop                 String   @unique
   blockingMode         String   @default("disabled")
   countryList          String   @default("")
@@ -46,4 +46,6 @@ model CountryBlockerSettings {
   appEmbedEnabled     Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  @@map("country_blocker_settings")
 }

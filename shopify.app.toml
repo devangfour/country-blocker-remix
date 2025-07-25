@@ -3,7 +3,7 @@
 client_id = "853ca74d45985114760c3f0f4373dafa"
 name = "review-test"
 handle = "review-test-15"
-application_url = "https://grateful-lc-overcome-planners.trycloudflare.com"
+application_url = "https://everything-wichita-rh-mandatory.trycloudflare.com"
 embedded = true
 
 [build]
@@ -22,7 +22,7 @@ api_version = "2024-07"
 scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects"
 
 [auth]
-redirect_urls = ["https://grateful-lc-overcome-planners.trycloudflare.com/auth/callback", "https://grateful-lc-overcome-planners.trycloudflare.com/auth/shopify/callback", "https://grateful-lc-overcome-planners.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://everything-wichita-rh-mandatory.trycloudflare.com/auth/callback", "https://everything-wichita-rh-mandatory.trycloudflare.com/auth/shopify/callback", "https://everything-wichita-rh-mandatory.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
