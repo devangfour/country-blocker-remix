@@ -1,4 +1,4 @@
-import { Page, Button, LegacyCard, Layout, RadioButton, LegacyStack, Link, TextField, Text, FormLayout, ColorPicker, DropZone, Thumbnail, Banner, List, EmptyState, Box, Spinner, Frame } from '@shopify/polaris';
+import { Layout, Card, LegacyStack, RadioButton, Link, TextField, Text, FormLayout, DropZone, Thumbnail, Banner, List, Spinner, Frame, BlockStack, InlineStack } from '@shopify/polaris';
 import { TitleBar, useAppBridge, SaveBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from 'react';
 import { useLoaderData, useActionData, useSubmit, useNavigation } from "@remix-run/react";
@@ -148,8 +148,8 @@ export async function action({ request }) {
                 ...settings,
                 updatedAt: new Date(),
             },
-            { 
-                upsert: true, 
+            {
+                upsert: true,
                 new: true,
                 setDefaultsOnInsert: true
             }
@@ -410,180 +410,176 @@ export default function SettingsPage() {
 
     return (
         <Frame>
-            <Page
-                backAction={{ content: 'Settings', url: '/app' }}
-                title="Country Blocker Settings"
-            >
-                <TitleBar title="Country Blocker Settings" />
+            <TitleBar title="Country Blocker Settings" />
 
-                <SaveBar id="country-blocker-save-bar">
-                    <button variant="primary" onClick={handleSaveBarSave} disabled={isLoading}>
-                        {isLoading ? 'Saving...' : 'Save'}
-                    </button>
-                    <button onClick={handleSaveBarDiscard} disabled={isLoading}>
-                        Discard
-                    </button>
-                </SaveBar>
+            <SaveBar id="country-blocker-save-bar">
+                <button variant="primary" onClick={handleSaveBarSave} disabled={isLoading}>
+                    {isLoading ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={handleSaveBarDiscard} disabled={isLoading}>
+                    Discard
+                </button>
+            </SaveBar>
 
-                {isLoading && (
-                    <div style={{
-                        position: 'fixed',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        zIndex: 1000,
-                        background: 'white',
-                        padding: '20px',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                    }}>
-                        <LegacyStack vertical alignment="center">
-                            <Spinner accessibilityLabel="Saving settings" size="large" />
-                            <Text variant="bodyMd" as="p">Saving settings...</Text>
-                        </LegacyStack>
-                    </div>
-                )}
+            {isLoading && (
+                <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 1000,
+                    background: 'white',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}>
+                    <LegacyStack vertical alignment="center">
+                        <Spinner accessibilityLabel="Saving settings" size="large" />
+                        <Text variant="bodyMd" as="p">Saving settings...</Text>
+                    </LegacyStack>
+                </div>
+            )}
 
-                <Layout>
-                    <Layout.Section variant="oneHalf">
-                        <LegacyCard title="Block Settings" sectioned>
-                            <LegacyStack vertical>
-                                <Text variant="headingMd" as="h6">
-                                    Country Blocking Configuration
-                                </Text>
-                                <RadioButton
-                                    label="Block listed countries"
-                                    helpText="Block access from specified countries"
-                                    checked={formData.blockingMode === 'disabled'}
-                                    id="disabled"
-                                    name="accounts"
-                                    onChange={handleModeChange}
+            <Layout>
+                <Layout.Section variant="oneHalf">
+                    <Card>
+                        <BlockStack gap="300">
+                            <Text variant="headingMd" as="h6">
+                                Country Blocking Configuration
+                            </Text>
+                            <RadioButton
+                                label="Block listed countries"
+                                helpText="Block access from specified countries"
+                                checked={formData.blockingMode === 'disabled'}
+                                id="disabled"
+                                name="accounts"
+                                onChange={handleModeChange}
+                            />
+                            <RadioButton
+                                label="Allow only listed countries (Whitelist)"
+                                helpText="Only allow access from specified countries"
+                                id="optional"
+                                name="accounts"
+                                checked={formData.blockingMode === 'optional'}
+                                onChange={handleModeChange}
+                            />
+                            <div>
+                                <TextField
+                                    label="Country List"
+                                    value={formData.countryList}
+                                    onChange={(value) => handleFieldChange('countryList', value)}
+                                    multiline={4}
+                                    autoComplete="off"
+                                    placeholder='US,CA,GB,DE'
                                 />
-                                <RadioButton
-                                    label="Allow only listed countries (Whitelist)"
-                                    helpText="Only allow access from specified countries"
-                                    id="optional"
-                                    name="accounts"
-                                    checked={formData.blockingMode === 'optional'}
-                                    onChange={handleModeChange}
-                                />
-                                <div>
+                                <p>Enter ISO country codes separated by commas (e.g., US, CA, GB, DE)</p>
+                                <Link url="https://example.com" external={true}>
+                                    <span style={linkStyle}>Find country codes from here</span>
+                                </Link>
+                            </div>
+
+                            <TextField
+                                label="Blocked IP Addresses"
+                                value={formData.blockedIpAddresses}
+                                onChange={(value) => handleFieldChange('blockedIpAddresses', value)}
+                                multiline={4}
+                                autoComplete="off"
+                                placeholder='192.168.1.1, 10.0.0.1, 203.0.113.0/24'
+                                helpText={
+                                    <Text as="span" variant="bodyMd">
+                                        <strong>Professional Note:</strong> Enter IP addresses or CIDR blocks separated by commas.
+                                        Examples: Single IP (192.168.1.1), IP range (203.0.113.0/24),
+                                        multiple IPs (1.2.3.4, 5.6.7.8). Use CIDR notation for subnets
+                                        (e.g., /24 for 256 addresses, /16 for 65,536 addresses).
+                                        Always test thoroughly in a staging environment before applying
+                                        IP restrictions to production.
+                                    </Text>
+                                }
+                            />
+                        </BlockStack>
+                    </Card>
+                </Layout.Section>
+
+                <Layout.Section variant="oneHalf">
+                    <Card>
+                        <BlockStack gap="300">
+
+                            <Text variant="headingMd" as="h6">
+                                Block Page Content
+                            </Text>
+                            <TextField
+                                label="Block Page Title"
+                                value={formData.blockPageTitle}
+                                onChange={(value) => handleFieldChange('blockPageTitle', value)}
+                                maxLength={100}
+                                autoComplete="off"
+                                showCharacterCount
+                                placeholder='Enter a title for the block page'
+                            />
+
+                            <TextField
+                                label="Block Page Description"
+                                value={formData.blockPageDescription}
+                                onChange={(value) => handleFieldChange('blockPageDescription', value)}
+                                maxLength={500}
+                                multiline={4}
+                                autoComplete="off"
+                                showCharacterCount
+                                placeholder='Enter a description for the block page'
+                            />
+
+                            <Text variant="headingMd" as="h6">
+                                Appearance Settings
+                            </Text>
+
+                            <FormLayout>
+                                <FormLayout.Group condensed>
                                     <TextField
-                                        label="Country List"
-                                        value={formData.countryList}
-                                        onChange={(value) => handleFieldChange('countryList', value)}
-                                        multiline={4}
+                                        label="Text Color"
+                                        onChange={(value) => handleFieldChange('textColor', value)}
                                         autoComplete="off"
-                                        placeholder='US,CA,GB,DE'
+                                        maxLength={100}
+                                        showCharacterCount
+                                        type="color"
+                                        value={formData.textColor}
                                     />
-                                    <p>Enter ISO country codes separated by commas (e.g., US, CA, GB, DE)</p>
-                                    <Link url="https://example.com" external={true}>
-                                        <span style={linkStyle}>Find country codes from here</span>
-                                    </Link>
-                                </div>
+                                    <TextField
+                                        label="Background Color"
+                                        onChange={(value) => handleFieldChange('backgroundColor', value)}
+                                        autoComplete="off"
+                                        maxLength={100}
+                                        showCharacterCount
+                                        type="color"
+                                        value={formData.backgroundColor}
+                                    />
+                                </FormLayout.Group>
+                                <FormLayout.Group condensed>
+                                    <TextField
+                                        label="Box Background Color"
+                                        onChange={(value) => handleFieldChange('boxBackgroundColor', value)}
+                                        autoComplete="off"
+                                        maxLength={100}
+                                        showCharacterCount
+                                        type="color"
+                                        value={formData.boxBackgroundColor}
+                                    />
+                                </FormLayout.Group>
+                            </FormLayout>
 
-                                <TextField
-                                    label="Blocked IP Addresses"
-                                    value={formData.blockedIpAddresses}
-                                    onChange={(value) => handleFieldChange('blockedIpAddresses', value)}
-                                    multiline={4}
-                                    autoComplete="off"
-                                    placeholder='192.168.1.1, 10.0.0.1, 203.0.113.0/24'
-                                    helpText={
-                                        <Text as="span" variant="bodyMd">
-                                            <strong>Professional Note:</strong> Enter IP addresses or CIDR blocks separated by commas.
-                                            Examples: Single IP (192.168.1.1), IP range (203.0.113.0/24),
-                                            multiple IPs (1.2.3.4, 5.6.7.8). Use CIDR notation for subnets
-                                            (e.g., /24 for 256 addresses, /16 for 65,536 addresses).
-                                            Always test thoroughly in a staging environment before applying
-                                            IP restrictions to production.
-                                        </Text>
-                                    }
-                                />
-                            </LegacyStack>
-                        </LegacyCard>
-                    </Layout.Section>
-
-                    <Layout.Section variant="oneHalf">
-                        <LegacyCard title="Content Settings" sectioned>
+                            <Text variant="headingMd" as="h6">
+                                Logo Upload
+                            </Text>
                             <LegacyStack vertical>
-                                <Text variant="headingMd" as="h6">
-                                    Block Page Content
-                                </Text>
-                                <TextField
-                                    label="Block Page Title"
-                                    value={formData.blockPageTitle}
-                                    onChange={(value) => handleFieldChange('blockPageTitle', value)}
-                                    maxLength={100}
-                                    autoComplete="off"
-                                    showCharacterCount
-                                    placeholder='Enter a title for the block page'
-                                />
-
-                                <TextField
-                                    label="Block Page Description"
-                                    value={formData.blockPageDescription}
-                                    onChange={(value) => handleFieldChange('blockPageDescription', value)}
-                                    maxLength={500}
-                                    multiline={4}
-                                    autoComplete="off"
-                                    showCharacterCount
-                                    placeholder='Enter a description for the block page'
-                                />
-
-                                <Text variant="headingMd" as="h6">
-                                    Appearance Settings
-                                </Text>
-
-                                <FormLayout>
-                                    <FormLayout.Group condensed>
-                                        <TextField
-                                            label="Text Color"
-                                            onChange={(value) => handleFieldChange('textColor', value)}
-                                            autoComplete="off"
-                                            maxLength={100}
-                                            showCharacterCount
-                                            type="color"
-                                            value={formData.textColor}
-                                        />
-                                        <TextField
-                                            label="Background Color"
-                                            onChange={(value) => handleFieldChange('backgroundColor', value)}
-                                            autoComplete="off"
-                                            maxLength={100}
-                                            showCharacterCount
-                                            type="color"
-                                            value={formData.backgroundColor}
-                                        />
-                                    </FormLayout.Group>
-                                    <FormLayout.Group condensed>
-                                        <TextField
-                                            label="Box Background Color"
-                                            onChange={(value) => handleFieldChange('boxBackgroundColor', value)}
-                                            autoComplete="off"
-                                            maxLength={100}
-                                            showCharacterCount
-                                            type="color"
-                                            value={formData.boxBackgroundColor}
-                                        />
-                                    </FormLayout.Group>
-                                </FormLayout>
-
-                                <Text variant="headingMd" as="h6">
-                                    Logo Upload
-                                </Text>
-                                <LegacyStack vertical>
-                                    {errorMessage}
-                                    <DropZone accept="image/*" type="image" onDrop={handleDrop}>
-                                        {uploadedFiles}
-                                        {fileUpload}
-                                    </DropZone>
-                                </LegacyStack>
+                                {errorMessage}
+                                <DropZone accept="image/*" type="image" onDrop={handleDrop}>
+                                    {uploadedFiles}
+                                    {fileUpload}
+                                </DropZone>
                             </LegacyStack>
-                        </LegacyCard>
-                    </Layout.Section>
-                </Layout>
-            </Page>
-        </Frame>
+                        </BlockStack>
+                    </Card>
+                </Layout.Section>
+            </Layout>
+        </Frame >
     );
 }
