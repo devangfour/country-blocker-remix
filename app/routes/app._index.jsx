@@ -7,21 +7,23 @@ import {
   Box,
   InlineStack,
   Text,
-  ProgressBar,
   BlockStack,
   Badge,
   Collapsible,
   Tooltip,
+  Icon,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "@remix-run/react";
+import { redirect, useNavigate, useNavigation, useSubmit } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
+import {Redirect} from '@shopify/app-bridge/actions';
 import { authenticate } from "../shopify.server";
 import connectDB from "../db.server.js";
 import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 import SettingsPage from "./app.settings";
+import { ChevronDownIcon, ChevronUpIcon } from '@shopify/polaris-icons';
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
@@ -32,26 +34,64 @@ export async function action({ request }) {
   const formData = await request.formData();
   const action = formData.get("action");
 
+  // Existing embed actions
   if (action === "mark_embed_enabled") {
-    // Update or create settings with app embed enabled
     await CountryBlockerSettings.findOneAndUpdate(
       { shop },
       { appEmbedEnabled: true },
       { upsert: true, new: true }
     );
-
     return json({ success: true });
   }
 
   if (action === "mark_embed_disabled") {
-    // Update or create settings with app embed disabled
     await CountryBlockerSettings.findOneAndUpdate(
       { shop },
       { appEmbedEnabled: false },
       { upsert: true, new: true }
     );
-
     return json({ success: true });
+  }
+
+  // Add settings actions here
+  if (action === "save_settings") {
+    const countryList = formData.get("countryList");
+    const blockingMode = formData.get("blockingMode") || "block";
+    const redirectUrl = formData.get("redirectUrl") || "";
+    const customMessage = formData.get("customMessage") || "Access from your location is not permitted.";
+    const isEnabled = formData.get("isEnabled") === "true";
+    const blockPageTitle = formData.get("blockPageTitle") || "Access Restricted";
+    const blockPageDescription = formData.get("blockPageDescription") || "This store is not available in your country.";
+    const textColor = formData.get("textColor") || "#000000";
+    const backgroundColor = formData.get("backgroundColor") || "#FFFFFF";
+    const boxBackgroundColor = formData.get("boxBackgroundColor") || "#e86161";
+    const blockedIpAddresses = formData.get("blockedIpAddresses") || "";
+
+    try {
+      const settings = await CountryBlockerSettings.findOneAndUpdate(
+        { shop },
+        {
+          countryList,
+          blockingMode,
+          redirectUrl,
+          customMessage,
+          isEnabled,
+          blockPageTitle,
+          blockPageDescription,
+          textColor,
+          backgroundColor,
+          boxBackgroundColor,
+          blockedIpAddresses,
+          updatedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+
+      return json({ success: true, settings });
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      return json({ success: false, error: error.message }, { status: 500 });
+    }
   }
 
   return json({ success: false });
@@ -81,18 +121,33 @@ export async function loader({ request }) {
 
   const shopData = await shopResponse.json();
 
-  // Get settings from database to check app embed status
+  // Get settings from database
   const settings = await CountryBlockerSettings.findOne({ shop });
 
   return json({
     shop: shopData.data.shop,
     appEmbedEnabled: settings?.appEmbedEnabled || false,
+    settings: settings || {
+      countryList: "",
+      blockingMode: "block",
+      redirectUrl: "",
+      customMessage: "Access from your location is not permitted.",
+      isEnabled: false,
+      blockPageTitle: "Access Restricted",
+      blockPageDescription: "This store is not available in your country.",
+      textColor: "#000000",
+      backgroundColor: "#FFFFFF",
+      boxBackgroundColor: "#e86161",
+      logoUrl: null,
+      blockedIpAddresses: "",
+    },
   });
 }
 
 export default function Index() {
-  const { shop, appEmbedEnabled } = useLoaderData();
+  const { shop, appEmbedEnabled, settings } = useLoaderData();
   const navigate = useNavigate();
+  const submit = useSubmit();
   const shopify = useAppBridge(); // Add this line
 
 
@@ -141,17 +196,9 @@ export default function Index() {
       action: hasEnabledEmbed ? "Configure" : "Enable",
       url: hasEnabledEmbed
         ? "/app/settings"
-        : `/admin/themes/current/editor?addAppBlockId=country-blocker&target=appEmbeds`,
+        : `/admin/themes/current/editor?context=apps&appEmbed=ba084c5d2a53dc94b3473b93b22b64be%2Fcountry-blocker`,
       required: true,
       completed: hasEnabledEmbed,
-    },
-    {
-      id: "configure-settings",
-      title: "Configure Country Blocking",
-      description: "Set up which countries to block and customize the block message",
-      action: "Configure",
-      url: "/app/settings",
-      required: true,
     },
     {
       id: "review-blocked-countries",
@@ -163,7 +210,7 @@ export default function Index() {
     }
   ];
 
-  const Icon = ({ completed, onClick }) =>
+  const IconSVG = ({ completed, onClick }) =>
     completed ? (
       <svg style={{ cursor: 'pointer' }} onClick={onClick} width="20" height="20" viewBox="2 2 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#000"></circle><path fill="#fff" d="M17.2738 8.52629C17.6643 8.91682 17.6643 9.54998 17.2738 9.94051L11.4405 15.7738C11.05 16.1644 10.4168 16.1644 10.0263 15.7738L7.3596 13.1072C6.96908 12.7166 6.96908 12.0835 7.3596 11.693C7.75013 11.3024 8.38329 11.3024 8.77382 11.693L10.7334 13.6525L15.8596 8.52629C16.2501 8.13577 16.8833 8.13577 17.2738 8.52629Z"></path></svg>
     ) : (
@@ -184,7 +231,6 @@ export default function Index() {
   }, []);
 
   const completedCount = tasks.filter(task => task.completed || completedTasks.includes(task.id)).length;
-  const progressPercentage = (completedCount / tasks.length) * 100;
 
 
   const [openIndex, setOpenIndex] = useState(0);
@@ -197,15 +243,25 @@ export default function Index() {
     try {
       const result = await shopify.reviews.request();
       if (!result.success) {
-        console.log(`Review modal not displayed. Reason: ${result} ${result.code}: ${result.message}`);
-        console.log(`Review request result: ${JSON.stringify(result)}`);
-
+        if (result.code === 'cooldown-period' || result.code === 'mobile-app') {
+          setCompletedTasks(prev => [...prev, "review-blocked-countries"]);
+          // Use shopify.toast instead of window.open
+          shopify.toast.show('Opening review page in new tab...');
+          setTimeout(() => {
+            window.open("https://apps.shopify.com/country-blocker#modal-show=WriteReviewModal", "_blank");
+          }, 500);
+        } else if (result.code === 'annual-limit-reached' || result.code === 'merchant-ineligible') {
+          shopify.toast.show(result.message, { isError: true });
+        }
+      } else {
+        setCompletedTasks(prev => [...prev, "review-blocked-countries"]);
+        shopify.toast.show('Thank you for reviewing our app!');
       }
-      // if result.success *is* true, then review modal is displayed
     } catch (error) {
       console.error('Error requesting review:', error);
+      shopify.toast.show('Error requesting review. Please try again.', { isError: true });
     }
-  }, []);
+  }, [shopify]);
 
   // Add state for toggling the section
   const [isExpanded, setIsExpanded] = useState(false);
@@ -215,7 +271,12 @@ export default function Index() {
     setIsExpanded(prev => !prev);
   }, []);
 
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
 
+  const navigation = useNavigation();
+  const isLoading = navigation.state === "submitting";
+
+  const app = useAppBridge();
 
   return (
     <Page>
@@ -237,10 +298,11 @@ export default function Index() {
             )}
 
             {/* Welcome Banner */}
-            {!shouldRedirect && (
+            {!shouldRedirect && showWelcomeBanner && (
               <Banner
                 title="Welcome to Country Blocker"
                 status="info"
+                onDismiss={() => setShowWelcomeBanner(false)}
               >
                 <p>
                   Protect your store by blocking access from specific countries.
@@ -249,54 +311,53 @@ export default function Index() {
               </Banner>
             )}
 
-            {/* Progress Card */}
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between">
-                  <Text variant="headingMd" as="h2">
-                    Setup Progress
-                  </Text>
-                  <Badge status={completedCount === tasks.length ? "success" : "attention"}>
-                    {completedCount} of {tasks.length} completed
-                  </Badge>
-                </InlineStack>
-
-                <Box>
-                  <ProgressBar progress={progressPercentage} size="small" />
-                  <Box paddingBlockStart="200">
-                    <Text variant="bodySm" tone="subdued">
-                      {Math.round(progressPercentage)}% complete
-                    </Text>
-                  </Box>
-                </Box>
-              </BlockStack>
-            </Card>
 
             {/* Setup Tasks */}
             <Card>
               <BlockStack gap="400">
-                <InlineStack align="space-between">
-                  <Text variant="headingMd" as="h2">
-                    Setup Tasks
-                  </Text>
-                  <span style={{ cursor: 'pointer' }} onClick={toggleMainSection}>
+                <div style={{ cursor: 'pointer' }} onClick={toggleMainSection}>
+
+                  <InlineStack align="space-between">
+                    <InlineStack gap="200">
+                      <BlockStack gap="200">
+                        <Text variant="headingMd" as="h2">
+                          Setup Tasks
+                        </Text>
+                        <Text as="p" fontWeight="bold">
+                          <Badge>{completedCount} / {tasks.length} Completed</Badge>
+                        </Text>
+                      </BlockStack>
+                    </InlineStack>
                     <Text variant="bodyMd" as="p" tone="subdued">
-                      Click me
+                      <Icon
+                        source={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+                        tone="base"
+                      />
                     </Text>
-                  </span>
-                </InlineStack>
+                  </InlineStack>
+                </div>
                 <Collapsible open={isExpanded}>
-                  <BlockStack gap="300">
+                  <BlockStack>
                     {tasks.map((task, index) => {
                       const isCompleted = task.completed || completedTasks.includes(task.id);
 
                       return (
                         <Box
                           key={task.id}
-                          padding="400"
-                          borderWidth="0165"
-                          borderColor="border-subdued"
+                          paddingInline="200"
+                          paddingBlock="200"
                           borderRadius="200"
+                          // onMouseEnter={(e) => {
+                          //   if (openIndex !== index) {
+                          //     e.currentTarget.style.backgroundColor = 'var(--p-color-bg-surface-hover)';
+                          //   }
+                          // }}
+                          // onMouseLeave={(e) => {
+                          //   if (openIndex !== index) {
+                          //     e.currentTarget.style.backgroundColor = '';
+                          //   }
+                          // }}
+                          backgroundColor={openIndex === index ? 'bg-fill-info' : 'bg-fill-subdued'}
                         >
                           <InlineStack align="space-between" blockAlign="center">
                             <InlineStack gap="300" blockAlign="center">
@@ -304,7 +365,7 @@ export default function Index() {
                                 <InlineStack gap="200" direction="row" align="start">
                                   <Tooltip content={isCompleted ? "Mark as not done" : "Mark as done"}>
                                     <Text>
-                                      <Icon completed={isCompleted} onClick={() => toggleTaskCompletion(task.id)} />
+                                      <IconSVG completed={isCompleted} onClick={() => toggleTaskCompletion(task.id)} />
                                     </Text>
                                   </Tooltip>
                                   <InlineStack gap="200" align="start">
@@ -332,11 +393,22 @@ export default function Index() {
                                 if (task.action == "Review") {
                                   handleReviewRequest();
                                 } else {
-
-                                  // Handle external URLs (like admin theme editor)
                                   if (task.url.startsWith('/admin/')) {
-                                    alert(`${shop.primaryDomain.url}${task.url}`);
+
                                     window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
+
+                                    // navigate(`${shop.primaryDomain.url}${task.url}`,{
+                                    //   replace: false,
+                                    //   target: 'new',
+                                    // });
+
+                                    // redirect.dispatch(Redirect.Action.REMOTE, {
+                                    //   url: 'http://example.com',
+                                    //   newContext: true,
+                                    // });
+
+                                   // alert(`${shop.primaryDomain.url}${task.url}`);
+                                   // window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
                                   } else {
                                     navigate(task.url);
                                   }
@@ -354,7 +426,7 @@ export default function Index() {
               </BlockStack>
             </Card>
 
-            <SettingsPage />
+            <SettingsPage initialSettings={settings} submit={submit} isLoading={isLoading} app={app} />
 
 
           </BlockStack>

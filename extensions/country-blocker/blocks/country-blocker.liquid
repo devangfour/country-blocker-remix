@@ -1,0 +1,13 @@
+<country-blocker 
+  {% assign store_settings = app.metafields.country_blocker.store_settings.setting.value %}
+  {%  for sett in store_settings %}
+    data-{{ sett.key }}="{{  sett.value }}"
+  {% endfor %}>
+</country-blocker>
+<script defer src="{{ 'country-blocker.js' | asset_url }}"></script>
+{% schema %}
+{
+  "name": "Country Blocker",
+  "target": "body"
+}
+{% endschema %}
