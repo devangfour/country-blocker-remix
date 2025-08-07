@@ -1,11 +1,11 @@
-import { Layout, Card, LegacyStack, RadioButton, Link, TextField, Text, FormLayout, DropZone, Thumbnail, Banner, List, Frame, BlockStack } from '@shopify/polaris';
+import { Layout, Card, LegacyStack, RadioButton, Link, TextField, Text, FormLayout, DropZone, Thumbnail, Banner, List, Frame, BlockStack, Tabs, Divider } from '@shopify/polaris';
 import { SaveBar } from "@shopify/app-bridge-react";
 import { useState, useCallback, useEffect } from 'react';
 
 export default function SettingsPage({ initialSettings, submit, isLoading, app }) {
     const [formData, setFormData] = useState({
         countryList: initialSettings?.countryList || "",
-        blockingMode: initialSettings?.blockingMode || "disabled",
+        blockingMode: initialSettings?.blockingMode || "allow",
         redirectUrl: initialSettings?.redirectUrl || "",
         customMessage: initialSettings?.customMessage || "Access from your location is not permitted.",
         isEnabled: initialSettings?.isEnabled || false,
@@ -14,7 +14,8 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         textColor: initialSettings?.textColor || "#000000",
         backgroundColor: initialSettings?.backgroundColor || "#FFFFFF",
         boxBackgroundColor: initialSettings?.boxBackgroundColor || "#e86161",
-        blockedIpAddresses: initialSettings?.blockedIpAddresses || ""
+        blockedIpAddresses: initialSettings?.blockedIpAddresses || "",
+        blockBy: initialSettings?.blockBy || "country" // Default to country-wise blocking
     });
 
     console.log("Initial Settings:", initialSettings);
@@ -23,6 +24,11 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
     // File upload state
     const [files, setFiles] = useState([]);
     const [rejectedFiles, setRejectedFiles] = useState([]);
+
+    // Tab state for Block By selection
+    const [selectedTab, setSelectedTab] = useState(() => {
+        return formData.blockBy === 'ip' ? 1 : 0; // 0 for country, 1 for ip
+    });
 
     const handleFieldChange = useCallback((field, value) => {
         console.log("Field Change:", field, value);
@@ -39,6 +45,13 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         handleFieldChange('blockingMode', newValue);
     }, [handleFieldChange]);
 
+    // Handle tab change for Block By selection
+    const handleTabChange = useCallback((selectedTabIndex) => {
+        setSelectedTab(selectedTabIndex);
+        const blockByValue = selectedTabIndex === 0 ? 'country' : 'ip';
+        handleFieldChange('blockBy', blockByValue);
+    }, [handleFieldChange]);
+
     const handleDrop = useCallback(
         (_droppedFiles, acceptedFiles, rejectedFiles) => {
             setFiles((files) => [...files, ...acceptedFiles]);
@@ -53,7 +66,7 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
     const handleSave = useCallback(() => {
         const formDataToSubmit = new FormData();
         formDataToSubmit.append("action", "save_settings");
-        formDataToSubmit.append("countryList", JSON.stringify(formData.countryList));
+        formDataToSubmit.append("countryList", formData.countryList);
         formDataToSubmit.append("blockingMode", formData.blockingMode);
         formDataToSubmit.append("redirectUrl", formData.redirectUrl);
         formDataToSubmit.append("customMessage", formData.customMessage);
@@ -64,19 +77,24 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         formDataToSubmit.append("backgroundColor", formData.backgroundColor);
         formDataToSubmit.append("boxBackgroundColor", formData.boxBackgroundColor);
         formDataToSubmit.append("blockedIpAddresses", formData.blockedIpAddresses);
+        formDataToSubmit.append("blockBy", formData.blockBy); // Add the new blockBy field
 
         // Add file if uploaded
         if (files.length > 0) {
             formDataToSubmit.append('logoFile', files[0]);
         }
 
+        // Keep existing logo URL if no new file is uploaded
+        if (initialSettings?.logoUrl && files.length === 0) {
+            formDataToSubmit.append('existingLogoUrl', initialSettings.logoUrl);
+        }
+
         submit(formDataToSubmit, { method: "post", encType: "multipart/form-data" });
-        app.saveBar.hide('country-blocker-save-bar');
-    }, [formData, files, submit]);
+    }, [formData, files, initialSettings?.logoUrl, submit]);
 
     const handleDiscard = useCallback(() => {
         setFormData({
-            blockingMode: initialSettings?.blockingMode || "disabled",
+            blockingMode: initialSettings?.blockingMode || "allow",
             redirectUrl: initialSettings?.redirectUrl || "",
             customMessage: initialSettings?.customMessage || "Access from your location is not permitted.",
             isEnabled: initialSettings?.isEnabled || false,
@@ -86,8 +104,11 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
             backgroundColor: initialSettings?.backgroundColor || "#FFFFFF",
             boxBackgroundColor: initialSettings?.boxBackgroundColor || "#e86161",
             blockedIpAddresses: initialSettings?.blockedIpAddresses || "",
+            blockBy: initialSettings?.blockBy || "country",
             countryList: initialSettings?.countryList,
         });
+        // Update tab selection based on blockBy value
+        setSelectedTab(initialSettings?.blockBy === 'ip' ? 1 : 0);
         setFiles([]);
         setRejectedFiles([]);
         app.saveBar.hide('country-blocker-save-bar');
@@ -154,54 +175,83 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                 Country Blocking Configuration
                             </Text>
                             <RadioButton
-                                label="Block listed countries"
-                                helpText="Block access from specified countries"
-                                checked={formData.blockingMode === 'disabled'}
-                                id="disabled"
+                                label="Block listed countries and IP addresses (Blacklist)"
+                                helpText="Block access from specified countries and IP addresses"
+                                checked={formData.blockingMode === 'allow'}
+                                id="allow"
                                 name="accounts"
                                 onChange={handleModeChange}
                             />
                             <RadioButton
-                                label="Allow only listed countries (Whitelist)"
-                                helpText="Only allow access from specified countries"
-                                id="optional"
+                                label="Allow only listed countries and IP addresses (Whitelist)"
+                                helpText="Only allow access from specified countries and IP addresses"
+                                id="whitelist"
                                 name="accounts"
-                                checked={formData.blockingMode === 'optional'}
+                                checked={formData.blockingMode === 'whitelist'}
                                 onChange={handleModeChange}
                             />
-                            <div>
-                                <TextField
-                                    label="Country List"
-                                    value={formData.countryList}
-                                    onChange={(value) => handleFieldChange('countryList', value)}
-                                    multiline={4}
-                                    autoComplete="off"
-                                    placeholder='US,CA,GB,DE'
-                                />
-                                <p>Enter ISO country codes separated by commas (e.g., US, CA, GB, DE)</p>
-                                <Link url="https://example.com" external={true}>
-                                    <span style={linkStyle}>Find country codes from here</span>
-                                </Link>
-                            </div>
 
-                            <TextField
-                                label="Blocked IP Addresses"
-                                value={formData.blockedIpAddresses}
-                                onChange={(value) => handleFieldChange('blockedIpAddresses', value)}
-                                multiline={4}
-                                autoComplete="off"
-                                placeholder='192.168.1.1, 10.0.0.1, 203.0.113.0/24'
-                                helpText={
-                                    <Text as="span" variant="bodyMd">
-                                        <strong>Professional Note:</strong> Enter IP addresses or CIDR blocks separated by commas.
-                                        Examples: Single IP (192.168.1.1), IP range (203.0.113.0/24),
-                                        multiple IPs (1.2.3.4, 5.6.7.8). Use CIDR notation for subnets
-                                        (e.g., /24 for 256 addresses, /16 for 65,536 addresses).
-                                        Always test thoroughly in a staging environment before applying
-                                        IP restrictions to production.
-                                    </Text>
-                                }
-                            />
+                            <Divider borderColor="border" />
+
+
+                            <Text variant="headingMd" as="h6">
+                                Block Configuration
+                            </Text>
+
+                            <Tabs
+                                tabs={[
+                                    {
+                                        id: 'country-tab',
+                                        content: 'Country',
+                                        panelID: 'country-panel'
+                                    },
+                                    {
+                                        id: 'ip-tab',
+                                        content: 'IP',
+                                        panelID: 'ip-panel'
+                                    }
+                                ]}
+                                selected={selectedTab}
+                                onSelect={handleTabChange}
+                            >
+                                <div style={{ padding: '1rem 0' }}>
+                                    {selectedTab === 0 && (
+                                        <div>
+                                            <TextField
+                                                label="Country List"
+                                                value={formData.countryList}
+                                                onChange={(value) => handleFieldChange('countryList', value)}
+                                                multiline={4}
+                                                autoComplete="off"
+                                                placeholder='US,CA,GB,DE'
+                                            />
+                                            <p>Enter ISO country codes separated by commas (e.g., US, CA, GB, DE)</p>
+                                            <Link url="https://example.com" external={true}>
+                                                <span style={linkStyle}>Find country codes from here</span>
+                                            </Link>
+                                        </div>
+                                    )}
+
+                                    {selectedTab === 1 && (
+                                        <TextField
+                                            label="Blocked IP Addresses"
+                                            value={formData.blockedIpAddresses}
+                                            onChange={(value) => handleFieldChange('blockedIpAddresses', value)}
+                                            multiline={4}
+                                            autoComplete="off"
+                                            placeholder='192.168.1.1, 10.0.0.1, 203.0.113.0/24'
+                                            helpText={
+                                                <Text as="span" variant="bodyMd">
+                                                    <strong>Note:</strong><br/>
+                                                    Single IP: 192.168.1.1<br />
+                                                    Multiple IPs: Separate with commas, e.g. 192.168.1.1, 10.0.0.5<br />
+                                                    Use wildcards (*) to block or allow ranges, e.g. 10.0.*.*
+                                                </Text>
+                                            }
+                                        />
+                                    )}
+                                </div>
+                            </Tabs>
                         </BlockStack>
                     </Card>
                 </Layout.Section>
@@ -274,6 +324,18 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                             <Text variant="headingMd" as="h6">
                                 Logo Upload
                             </Text>
+                            {initialSettings?.logoUrl && (
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <Text variant="bodyMd" as="p" tone="subdued">Current logo:</Text>
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                        <img
+                                            src={initialSettings.logoUrl}
+                                            alt="Current logo"
+                                            style={{ maxWidth: '150px', maxHeight: '150px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             <LegacyStack vertical>
                                 {errorMessage}
                                 <DropZone accept="image/*" type="image" onDrop={handleDrop}>
@@ -284,7 +346,7 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                         </BlockStack>
                     </Card>
                 </Layout.Section>
-            </Layout>
-        </Frame>
+            </Layout >
+        </Frame >
     );
 }

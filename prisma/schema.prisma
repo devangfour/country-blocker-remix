@@ -34,7 +34,7 @@ model Session {
 model CountryBlockerSettings {
   id                   String   @id @default(auto()) @map("_id") @db.ObjectId
   shop                 String   @unique
-  blockingMode         String   @default("disabled")
+  blockingMode         String   @default("allow")
   countryList          String   @default("")
   blockPageTitle       String   @default("Access Restricted")
   blockPageDescription String   @default("This store is not available in your country.")

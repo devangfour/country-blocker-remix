@@ -15,18 +15,20 @@ import {
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useEffect, useCallback } from "react";
-import { redirect, useNavigate, useNavigation, useSubmit } from "@remix-run/react";
+import { redirect, useNavigate, useNavigation, useSubmit, useActionData } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import {Redirect} from '@shopify/app-bridge/actions';
+import { Redirect } from '@shopify/app-bridge/actions';
 import { authenticate } from "../shopify.server";
 import connectDB from "../db.server.js";
 import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 import SettingsPage from "./app.settings";
 import { ChevronDownIcon, ChevronUpIcon } from '@shopify/polaris-icons';
+import { uploadToShopify } from "../utils/uploadToShopify.server";
+
 
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { shop } = session;
 
   await connectDB();
@@ -56,7 +58,7 @@ export async function action({ request }) {
   // Add settings actions here
   if (action === "save_settings") {
     const countryList = formData.get("countryList");
-    const blockingMode = formData.get("blockingMode") || "block";
+    const blockingMode = formData.get("blockingMode") || "allow";
     const redirectUrl = formData.get("redirectUrl") || "";
     const customMessage = formData.get("customMessage") || "Access from your location is not permitted.";
     const isEnabled = formData.get("isEnabled") === "true";
@@ -66,8 +68,44 @@ export async function action({ request }) {
     const backgroundColor = formData.get("backgroundColor") || "#FFFFFF";
     const boxBackgroundColor = formData.get("boxBackgroundColor") || "#e86161";
     const blockedIpAddresses = formData.get("blockedIpAddresses") || "";
+    const blockBy = formData.get("blockBy") || "country"; // Add the new blockBy field
+
+    // Extract store name from session.shop (remove .myshopify.com)
+    const storeName = shop.split('.')[0];
+
+
+    // Handle file upload if present
+    let logoUrl = null;
+    const logoFile = formData.get("logoFile");
+
+    if (logoFile && logoFile instanceof File && logoFile.size > 0) {
+      try {
+        console.log(`Uploading logo for store: ${storeName}`);
+        console.log(`File details: ${logoFile.name}, size: ${logoFile.size}, type: ${logoFile.type}`);
+
+        const uploadResult = await uploadToShopify(logoFile, request);
+        logoUrl = uploadResult.url || uploadResult.image?.url || uploadResult.resourceUrl;
+
+        console.log(`Logo uploaded successfully: ${logoUrl}`);
+        console.log('Full upload result:', uploadResult);
+      } catch (uploadError) {
+        console.error("File upload error:", uploadError);
+        return json({
+          error: `File upload failed: ${uploadError.message}`,
+          details: uploadError.message
+        }, { status: 400 });
+      }
+    } else {
+      console.log('No valid file found for upload');
+      // Keep existing logo URL if no new file is uploaded
+      const existingLogoUrl = formData.get("existingLogoUrl");
+      if (existingLogoUrl) {
+        logoUrl = existingLogoUrl;
+      }
+    }
 
     try {
+
       const settings = await CountryBlockerSettings.findOneAndUpdate(
         { shop },
         {
@@ -82,12 +120,69 @@ export async function action({ request }) {
           backgroundColor,
           boxBackgroundColor,
           blockedIpAddresses,
+          blockBy, // Add the new blockBy field
+          ...(logoUrl && { logoUrl }), // Only update logoUrl if a new file was uploaded
           updatedAt: new Date(),
         },
         { upsert: true, new: true }
       );
 
-      return json({ success: true, settings });
+      const shopResponse = await admin.graphql(
+        `#graphql
+        query getShop {
+          shop {
+            id
+          }
+        }`
+      );
+
+      const shopResult = await shopResponse.json();
+      const shopId = shopResult.data?.shop?.id;
+
+      const metafieldResponse = await admin.graphql(
+        `#graphql
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+              namespace
+              key
+              value
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        {
+          variables: {
+            metafields: [
+              {
+                ownerId: shopId,
+                namespace: "country_blocker",
+                key: "settings",
+                type: "json",
+                value: JSON.stringify(settings),
+              },
+            ],
+          },
+        }
+      );
+
+
+      const metafieldResult = await metafieldResponse.json();
+
+      console.log("Metafield response:", metafieldResult.data?.metafieldsSet);
+
+
+      return json({
+        success: true,
+        settings,
+        metafield: metafieldResult.data?.metafieldsSet?.metafields?.[0],
+        message: "Settings saved successfully",
+        ...(logoUrl && { logoUrl }) // Return the new logo URL if uploaded
+      });
     } catch (error) {
       console.error("Error saving settings:", error);
       return json({ success: false, error: error.message }, { status: 500 });
@@ -105,7 +200,10 @@ export async function loader({ request }) {
 
   // Get shop info
   const { admin } = await authenticate.admin(request);
-  const shopResponse = await admin.graphql(`
+
+  let shopResponse = {};
+  try {
+    shopResponse = await admin.graphql(`
     query {
       shop {
         name
@@ -118,6 +216,10 @@ export async function loader({ request }) {
       }
     }
   `);
+  } catch (error) {
+    console.error("Error fetching shop info:", error);
+    throw new Response("Failed to fetch shop info", { status: 500 });
+  }
 
   const shopData = await shopResponse.json();
 
@@ -129,7 +231,7 @@ export async function loader({ request }) {
     appEmbedEnabled: settings?.appEmbedEnabled || false,
     settings: settings || {
       countryList: "",
-      blockingMode: "block",
+      blockingMode: "allow",
       redirectUrl: "",
       customMessage: "Access from your location is not permitted.",
       isEnabled: false,
@@ -140,6 +242,7 @@ export async function loader({ request }) {
       boxBackgroundColor: "#e86161",
       logoUrl: null,
       blockedIpAddresses: "",
+      blockBy: "country", // Add default blockBy value
     },
   });
 }
@@ -148,6 +251,7 @@ export default function Index() {
   const { shop, appEmbedEnabled, settings } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
+  const actionData = useActionData();
   const shopify = useAppBridge(); // Add this line
 
 
@@ -242,21 +346,7 @@ export default function Index() {
   const handleReviewRequest = useCallback(async () => {
     try {
       const result = await shopify.reviews.request();
-      if (!result.success) {
-        if (result.code === 'cooldown-period' || result.code === 'mobile-app') {
-          setCompletedTasks(prev => [...prev, "review-blocked-countries"]);
-          // Use shopify.toast instead of window.open
-          shopify.toast.show('Opening review page in new tab...');
-          setTimeout(() => {
-            window.open("https://apps.shopify.com/country-blocker#modal-show=WriteReviewModal", "_blank");
-          }, 500);
-        } else if (result.code === 'annual-limit-reached' || result.code === 'merchant-ineligible') {
-          shopify.toast.show(result.message, { isError: true });
-        }
-      } else {
-        setCompletedTasks(prev => [...prev, "review-blocked-countries"]);
-        shopify.toast.show('Thank you for reviewing our app!');
-      }
+      // if (!result.success) {Setup App Embed
     } catch (error) {
       console.error('Error requesting review:', error);
       shopify.toast.show('Error requesting review. Please try again.', { isError: true });
@@ -264,7 +354,7 @@ export default function Index() {
   }, [shopify]);
 
   // Add state for toggling the section
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   // Update the toggle function
   const toggleMainSection = useCallback(() => {
@@ -277,6 +367,39 @@ export default function Index() {
   const isLoading = navigation.state === "submitting";
 
   const app = useAppBridge();
+
+  if (actionData?.success) {
+    shopify.toast.show('Settings saved successfully!', { isError: false });
+    app.saveBar.hide('country-blocker-save-bar');
+  }
+
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const taskBoxStyles = `
+  .task-box {
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+  }
+  .task-box:hover {
+    background-color: var(--p-color-bg-fill-transparent-hover) !important;
+  }
+  .task-box--active {
+    background-color: var(--p-color-bg-fill-transparent-selected) !important;
+  }
+`;
+
+  // Add the styles once when component mounts
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const styleSheet = document.createElement("style");
+      styleSheet.textContent = taskBoxStyles;
+      document.head.appendChild(styleSheet);
+      return () => {
+        if (document.head.contains(styleSheet)) {
+          document.head.removeChild(styleSheet);
+        }
+      };
+    }
+  }, []);
 
   return (
     <Page>
@@ -347,17 +470,15 @@ export default function Index() {
                           paddingInline="200"
                           paddingBlock="200"
                           borderRadius="200"
-                          // onMouseEnter={(e) => {
-                          //   if (openIndex !== index) {
-                          //     e.currentTarget.style.backgroundColor = 'var(--p-color-bg-surface-hover)';
-                          //   }
-                          // }}
-                          // onMouseLeave={(e) => {
-                          //   if (openIndex !== index) {
-                          //     e.currentTarget.style.backgroundColor = '';
-                          //   }
-                          // }}
-                          backgroundColor={openIndex === index ? 'bg-fill-info' : 'bg-fill-subdued'}
+                          background={
+                            hoveredIndex === index
+                              ? "bg-fill-transparent-hover"
+                              : openIndex === index
+                                ? "bg-fill-transparent-selected"
+                                : "bg-fill-transparent"
+                          }
+                          onMouseEnter={() => setHoveredIndex(index)}
+                          onMouseLeave={() => setHoveredIndex(null)}
                         >
                           <InlineStack align="space-between" blockAlign="center">
                             <InlineStack gap="300" blockAlign="center">
@@ -407,8 +528,8 @@ export default function Index() {
                                     //   newContext: true,
                                     // });
 
-                                   // alert(`${shop.primaryDomain.url}${task.url}`);
-                                   // window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
+                                    // alert(`${shop.primaryDomain.url}${task.url}`);
+                                    // window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
                                   } else {
                                     navigate(task.url);
                                   }

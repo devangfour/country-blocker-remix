@@ -8,7 +8,7 @@ const CountryBlockerSettingsSchema = new mongoose.Schema({
   },
   blockingMode: {
     type: String,
-    default: 'disabled'
+    default: 'allow'
   },
   countryList: {
     type: String,
@@ -41,6 +41,11 @@ const CountryBlockerSettingsSchema = new mongoose.Schema({
   blockedIpAddresses: {
     type: String,
     default: ''
+  },
+  blockBy: {
+    type: String,
+    default: 'country',
+    enum: ['country', 'ip']
   },
   appEmbedEnabled: {
     type: Boolean,
