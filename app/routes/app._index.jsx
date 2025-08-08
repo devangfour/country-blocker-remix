@@ -221,7 +221,71 @@ export async function loader({ request }) {
     throw new Response("Failed to fetch shop info", { status: 500 });
   }
 
+  let redirectToBilling = false;
+  try {
+
+    const subscriptionExec = await admin.graphql(
+      `#graphql
+        query AccessScopeList {
+          currentAppInstallation {
+            activeSubscriptions {
+          status
+          name
+        }
+          }
+        }`
+    );
+    const subscriptionRes = await subscriptionExec.json();
+
+    const activeSubscriptions = subscriptionRes?.data?.currentAppInstallation?.activeSubscriptions;
+
+    const hasActivePlan = activeSubscriptions?.some(
+      (sub) => sub.status === "ACTIVE"
+    );
+
+    // console.log("hasActivePlan",hasActivePlan,activeSubscriptions);
+
+    if (!hasActivePlan) {
+      redirectToBilling = true;
+    }
+  } catch (error) {
+    console.log("Error in subscription: ", error);
+  }
+
+
   const shopData = await shopResponse.json();
+ /* let appEnabled = false;
+
+  try {
+    appEnabled = await admin.graphql(`
+      query GetMainThemeWithSettings {
+  themes(first: 1, roles: [MAIN]) {
+    edges {
+      node {
+        id
+        name
+        role
+        files(filenames: ["config/settings_data.json"], first: 1) {
+          nodes {
+            body {
+              ... on OnlineStoreThemeFileBodyText {
+                content
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+      `);
+
+    appEnabled = await appEnabled.json();
+    console.log("appEnabled", appEnabled);
+  } catch (error) {
+    console.log("errrrrrrrrrro", error);
+
+  }*/
 
   // Get settings from database
   const settings = await CountryBlockerSettings.findOne({ shop });
@@ -244,11 +308,12 @@ export async function loader({ request }) {
       blockedIpAddresses: "",
       blockBy: "country", // Add default blockBy value
     },
+    redirectToBilling
   });
 }
 
 export default function Index() {
-  const { shop, appEmbedEnabled, settings } = useLoaderData();
+  const { shop, appEmbedEnabled, settings, redirectToBilling } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -273,7 +338,11 @@ export default function Index() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [appEmbedEnabled, completedTasks, navigate]);
+    if (redirectToBilling) {
+      window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
+      //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
+    }
+  }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
 
   // Save progress to localStorage
   useEffect(() => {
