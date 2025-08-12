@@ -11,9 +11,9 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         isEnabled: initialSettings?.isEnabled || false,
         blockPageTitle: initialSettings?.blockPageTitle || "Access Restricted",
         blockPageDescription: initialSettings?.blockPageDescription || "This store is not available in your country.",
-        textColor: initialSettings?.textColor || "#000000",
-        backgroundColor: initialSettings?.backgroundColor || "#FFFFFF",
-        boxBackgroundColor: initialSettings?.boxBackgroundColor || "#e86161",
+        textColor: initialSettings?.textColor || "#ffffff",
+        backgroundColor: initialSettings?.backgroundColor || "#ffffff",
+        boxBackgroundColor: initialSettings?.boxBackgroundColor || "#ff8901",
         blockedIpAddresses: initialSettings?.blockedIpAddresses || "",
         blockBy: initialSettings?.blockBy || "country" // Default to country-wise blocking
     });
@@ -202,12 +202,12 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                 tabs={[
                                     {
                                         id: 'country-tab',
-                                        content: 'Country',
+                                        content: 'Country wise',
                                         panelID: 'country-panel'
                                     },
                                     {
                                         id: 'ip-tab',
-                                        content: 'IP',
+                                        content: 'IP wise',
                                         panelID: 'ip-panel'
                                     }
                                 ]}
@@ -225,8 +225,8 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                                 autoComplete="off"
                                                 placeholder='US,CA,GB,DE'
                                             />
-                                            <p>Enter ISO country codes separated by commas (e.g., US, CA, GB, DE)</p>
-                                            <Link url="https://example.com" external={true}>
+                                            <p>Enter ISO country codes (Alpha-2 code) separated by commas (e.g., US, CA, GB, DE)</p>
+                                            <Link url="https://www.iban.com/country-codes" external={true}>
                                                 <span style={linkStyle}>Find country codes from here</span>
                                             </Link>
                                         </div>
@@ -234,7 +234,7 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
 
                                     {selectedTab === 1 && (
                                         <TextField
-                                            label="Blocked IP Addresses"
+                                            label="IP Addresses"
                                             value={formData.blockedIpAddresses}
                                             onChange={(value) => handleFieldChange('blockedIpAddresses', value)}
                                             multiline={4}

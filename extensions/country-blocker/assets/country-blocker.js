@@ -13,16 +13,25 @@ if (!customElements.get("country-blocker")) {
             this.dataset.logourl ||
             "https://cdn-icons-png.flaticon.com/512/565/565547.png",
         };
-        console.log("Country Blocker Config:", this.config);
         this.checkAccess();
       }
 
-      shouldBlock(data) {
-        const { countryCode, ipAddress } = data;
+      shouldBlock(data, api) {
+        let countryCode, ipAddress;
+
+        if (api === "https://ipinfo.io/json") {
+          countryCode = data.country;
+          ipAddress = data.ip;
+        } else if (api === "http://ip-api.com/json/") {
+          countryCode = data.countryCode;
+          ipAddress = data.query;
+        } else if (api === "https://ipwho.is") {
+          countryCode = data.country_code;
+          ipAddress = data.ip;
+        }
+
         const { mode, countries, ips, blockBy } = this.config;
 
-        console.log("Block configuration:", { mode, blockBy, countries, ips });
-        console.log("User data:", { countryCode, ipAddress });
 
         // Apply blocking based on the selected blockBy mode
         if (blockBy === "country") {
@@ -73,8 +82,11 @@ if (!customElements.get("country-blocker")) {
 
       async checkAccess() {
         const apis = [
-          "https://free.freeipapi.com/api/json/",
-          "https://freeipapi.com/api/json/",
+          // "https://free.freeipapi.com/api/json/",
+          // "https://freeipapi.com/api/json/",
+          "https://ipinfo.io/json",
+          "http://ip-api.com/json/",
+          "https://ipwho.is",
         ];
 
         for (const api of apis) {
@@ -82,7 +94,7 @@ if (!customElements.get("country-blocker")) {
             const response = await fetch(api);
             const data = await response.json();
 
-            if (this.shouldBlock(data)) {
+            if (this.shouldBlock(data, api)) {
               this.showBlockPage();
               return;
             }

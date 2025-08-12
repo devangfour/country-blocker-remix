@@ -18,7 +18,6 @@ import { useState, useEffect, useCallback } from "react";
 import { redirect, useNavigate, useNavigation, useSubmit, useActionData } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { Redirect } from '@shopify/app-bridge/actions';
 import { authenticate } from "../shopify.server";
 import connectDB from "../db.server.js";
 import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
@@ -64,9 +63,9 @@ export async function action({ request }) {
     const isEnabled = formData.get("isEnabled") === "true";
     const blockPageTitle = formData.get("blockPageTitle") || "Access Restricted";
     const blockPageDescription = formData.get("blockPageDescription") || "This store is not available in your country.";
-    const textColor = formData.get("textColor") || "#000000";
+    const textColor = formData.get("textColor") || "#FFFFFF";
     const backgroundColor = formData.get("backgroundColor") || "#FFFFFF";
-    const boxBackgroundColor = formData.get("boxBackgroundColor") || "#e86161";
+    const boxBackgroundColor = formData.get("boxBackgroundColor") || "#ff8901";
     const blockedIpAddresses = formData.get("blockedIpAddresses") || "";
     const blockBy = formData.get("blockBy") || "country"; // Add the new blockBy field
 
@@ -254,38 +253,38 @@ export async function loader({ request }) {
 
 
   const shopData = await shopResponse.json();
- /* let appEnabled = false;
-
-  try {
-    appEnabled = await admin.graphql(`
-      query GetMainThemeWithSettings {
-  themes(first: 1, roles: [MAIN]) {
-    edges {
-      node {
-        id
-        name
-        role
-        files(filenames: ["config/settings_data.json"], first: 1) {
-          nodes {
-            body {
-              ... on OnlineStoreThemeFileBodyText {
-                content
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-      `);
-
-    appEnabled = await appEnabled.json();
-    console.log("appEnabled", appEnabled);
-  } catch (error) {
-    console.log("errrrrrrrrrro", error);
-
-  }*/
+  /* let appEnabled = false;
+ 
+   try {
+     appEnabled = await admin.graphql(`
+       query GetMainThemeWithSettings {
+   themes(first: 1, roles: [MAIN]) {
+     edges {
+       node {
+         id
+         name
+         role
+         files(filenames: ["config/settings_data.json"], first: 1) {
+           nodes {
+             body {
+               ... on OnlineStoreThemeFileBodyText {
+                 content
+               }
+             }
+           }
+         }
+       }
+     }
+   }
+ }
+       `);
+ 
+     appEnabled = await appEnabled.json();
+     console.log("appEnabled", appEnabled);
+   } catch (error) {
+     console.log("errrrrrrrrrro", error);
+ 
+   }*/
 
   // Get settings from database
   const settings = await CountryBlockerSettings.findOne({ shop });
@@ -303,7 +302,7 @@ export async function loader({ request }) {
       blockPageDescription: "This store is not available in your country.",
       textColor: "#000000",
       backgroundColor: "#FFFFFF",
-      boxBackgroundColor: "#e86161",
+      boxBackgroundColor: "#ff8901",
       logoUrl: null,
       blockedIpAddresses: "",
       blockBy: "country", // Add default blockBy value
@@ -317,8 +316,7 @@ export default function Index() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
-  const shopify = useAppBridge(); // Add this line
-
+  const app = useAppBridge();
 
   // Get progress from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -333,13 +331,13 @@ export default function Index() {
   useEffect(() => {
     if (appEmbedEnabled && !completedTasks.includes("configure-settings")) {
       // Small delay to allow the page to render first
-      const timer = setTimeout(() => {
-        navigate("/app/settings");
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
+        const timer = setTimeout(() => {
+          navigate("/app/settings");
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
     if (redirectToBilling) {
-      window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
+        window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
       //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
   }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
@@ -414,13 +412,13 @@ export default function Index() {
   /* Review request handler */
   const handleReviewRequest = useCallback(async () => {
     try {
-      const result = await shopify.reviews.request();
+      const result = await app.reviews.request();
       // if (!result.success) {Setup App Embed
     } catch (error) {
       console.error('Error requesting review:', error);
-      shopify.toast.show('Error requesting review. Please try again.', { isError: true });
+      app.toast.show('Error requesting review. Please try again.', { isError: true });
     }
-  }, [shopify]);
+  }, [app]);
 
   // Add state for toggling the section
   const [isExpanded, setIsExpanded] = useState(true);
@@ -435,12 +433,13 @@ export default function Index() {
   const navigation = useNavigation();
   const isLoading = navigation.state === "submitting";
 
-  const app = useAppBridge();
-
-  if (actionData?.success) {
-    shopify.toast.show('Settings saved successfully!', { isError: false });
-    app.saveBar.hide('country-blocker-save-bar');
-  }
+  // Fix: Move the toast logic into useEffect to prevent showing on every render
+  useEffect(() => {
+    if (actionData?.success) {
+      app.toast.show('Settings saved successfully!', { isError: false });
+      app.saveBar.hide('country-blocker-save-bar');
+    }
+  }, [actionData, app]); // Changed from actionData?.success to actionData to prevent multiple triggers
 
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const taskBoxStyles = `
@@ -459,14 +458,14 @@ export default function Index() {
   // Add the styles once when component mounts
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      const styleSheet = document.createElement("style");
-      styleSheet.textContent = taskBoxStyles;
-      document.head.appendChild(styleSheet);
-      return () => {
+        const styleSheet = document.createElement("style");
+        styleSheet.textContent = taskBoxStyles;
+        document.head.appendChild(styleSheet);
+        return () => {
         if (document.head.contains(styleSheet)) {
           document.head.removeChild(styleSheet);
-        }
-      };
+          }
+        };
     }
   }, []);
 

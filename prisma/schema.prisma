@@ -38,9 +38,9 @@ model CountryBlockerSettings {
   countryList          String   @default("")
   blockPageTitle       String   @default("Access Restricted")
   blockPageDescription String   @default("This store is not available in your country.")
-  textColor           String   @default("#000000")
-  backgroundColor     String   @default("#FFFFFF")
-  boxBackgroundColor  String   @default("#e86161")
+  textColor           String   @default("#ffffff")
+  backgroundColor     String   @default("#ffffff")
+  boxBackgroundColor  String   @default("#ff8901")
   logoUrl             String?
   blockedIpAddresses  String   @default("")
   appEmbedEnabled     Boolean  @default(false)

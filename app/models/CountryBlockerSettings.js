@@ -24,7 +24,7 @@ const CountryBlockerSettingsSchema = new mongoose.Schema({
   },
   textColor: {
     type: String,
-    default: '#000000'
+    default: '#ffffff'
   },
   backgroundColor: {
     type: String,
@@ -32,7 +32,7 @@ const CountryBlockerSettingsSchema = new mongoose.Schema({
   },
   boxBackgroundColor: {
     type: String,
-    default: '#e86161'
+    default: '#ff8901'
   },
   logoUrl: {
     type: String,
