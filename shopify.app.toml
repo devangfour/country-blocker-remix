@@ -3,7 +3,7 @@
 client_id = "ba084c5d2a53dc94b3473b93b22b64be"
 name = "country-blocker"
 handle = "country-blocker-9"
-application_url = "https://continually-limit-eur-tomato.trycloudflare.com"
+application_url = "https://lance-inn-mines-visitor.trycloudflare.com"
 embedded = true
 
 [build]
@@ -19,10 +19,10 @@ api_version = "2024-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects"
+scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects,read_themes"
 
 [auth]
-redirect_urls = ["https://continually-limit-eur-tomato.trycloudflare.com/auth/callback", "https://continually-limit-eur-tomato.trycloudflare.com/auth/shopify/callback", "https://continually-limit-eur-tomato.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://lance-inn-mines-visitor.trycloudflare.com/auth/callback", "https://lance-inn-mines-visitor.trycloudflare.com/auth/shopify/callback", "https://lance-inn-mines-visitor.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

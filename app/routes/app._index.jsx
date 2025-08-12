@@ -24,6 +24,7 @@ import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 import SettingsPage from "./app.settings";
 import { ChevronDownIcon, ChevronUpIcon } from '@shopify/polaris-icons';
 import { uploadToShopify } from "../utils/uploadToShopify.server";
+import { getDefaultSettings, getShopData, hasActiveSubscription, isExtensionEnabled, saveMetafields } from "../utils/extension.server.jsx";
 
 
 export async function action({ request }) {
@@ -34,6 +35,11 @@ export async function action({ request }) {
 
   const formData = await request.formData();
   const action = formData.get("action");
+
+  if(action == 'check_extension') {
+    const isEnabled = await isExtensionEnabled(admin);
+    return json({ "extension_status": isEnabled });
+  }
 
   // Existing embed actions
   if (action === "mark_embed_enabled") {
@@ -126,54 +132,9 @@ export async function action({ request }) {
         { upsert: true, new: true }
       );
 
-      const shopResponse = await admin.graphql(
-        `#graphql
-        query getShop {
-          shop {
-            id
-          }
-        }`
-      );
-
-      const shopResult = await shopResponse.json();
-      const shopId = shopResult.data?.shop?.id;
-
-      const metafieldResponse = await admin.graphql(
-        `#graphql
-        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields {
-              id
-              namespace
-              key
-              value
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }`,
-        {
-          variables: {
-            metafields: [
-              {
-                ownerId: shopId,
-                namespace: "country_blocker",
-                key: "settings",
-                type: "json",
-                value: JSON.stringify(settings),
-              },
-            ],
-          },
-        }
-      );
-
-
-      const metafieldResult = await metafieldResponse.json();
+      const metafieldResult = await saveMetafields(admin, settings);
 
       console.log("Metafield response:", metafieldResult.data?.metafieldsSet);
-
 
       return json({
         success: true,
@@ -200,91 +161,16 @@ export async function loader({ request }) {
   // Get shop info
   const { admin } = await authenticate.admin(request);
 
-  let shopResponse = {};
-  try {
-    shopResponse = await admin.graphql(`
-    query {
-      shop {
-        name
-        primaryDomain {
-          url
-        }
-        plan {
-          displayName
-        }
-      }
-    }
-  `);
-  } catch (error) {
-    console.error("Error fetching shop info:", error);
-    throw new Response("Failed to fetch shop info", { status: 500 });
-  }
+  let shopResponse = await getShopData(admin);
 
   let redirectToBilling = false;
-  try {
-
-    const subscriptionExec = await admin.graphql(
-      `#graphql
-        query AccessScopeList {
-          currentAppInstallation {
-            activeSubscriptions {
-          status
-          name
-        }
-          }
-        }`
-    );
-    const subscriptionRes = await subscriptionExec.json();
-
-    const activeSubscriptions = subscriptionRes?.data?.currentAppInstallation?.activeSubscriptions;
-
-    const hasActivePlan = activeSubscriptions?.some(
-      (sub) => sub.status === "ACTIVE"
-    );
-
-    // console.log("hasActivePlan",hasActivePlan,activeSubscriptions);
-
-    if (!hasActivePlan) {
-      redirectToBilling = true;
-    }
-  } catch (error) {
-    console.log("Error in subscription: ", error);
+  const hasActivePlan = await hasActiveSubscription(admin);
+  if (!hasActivePlan) {
+    redirectToBilling = true;
   }
 
-
   const shopData = await shopResponse.json();
-  /* let appEnabled = false;
- 
-   try {
-     appEnabled = await admin.graphql(`
-       query GetMainThemeWithSettings {
-   themes(first: 1, roles: [MAIN]) {
-     edges {
-       node {
-         id
-         name
-         role
-         files(filenames: ["config/settings_data.json"], first: 1) {
-           nodes {
-             body {
-               ... on OnlineStoreThemeFileBodyText {
-                 content
-               }
-             }
-           }
-         }
-       }
-     }
-   }
- }
-       `);
- 
-     appEnabled = await appEnabled.json();
-     console.log("appEnabled", appEnabled);
-   } catch (error) {
-     console.log("errrrrrrrrrro", error);
- 
-   }*/
+  const isCountryBlockerEnabled = await isExtensionEnabled(admin);
 
   // Get settings from database
   const settings = await CountryBlockerSettings.findOne({ shop });
@@ -292,27 +178,14 @@ export async function loader({ request }) {
   return json({
     shop: shopData.data.shop,
     appEmbedEnabled: settings?.appEmbedEnabled || false,
-    settings: settings || {
-      countryList: "",
-      blockingMode: "allow",
-      redirectUrl: "",
-      customMessage: "Access from your location is not permitted.",
-      isEnabled: false,
-      blockPageTitle: "Access Restricted",
-      blockPageDescription: "This store is not available in your country.",
-      textColor: "#000000",
-      backgroundColor: "#FFFFFF",
-      boxBackgroundColor: "#ff8901",
-      logoUrl: null,
-      blockedIpAddresses: "",
-      blockBy: "country", // Add default blockBy value
-    },
-    redirectToBilling
+    settings: settings || getDefaultSettings(),
+    redirectToBilling,
+    isCountryBlockerEnabled
   });
 }
 
 export default function Index() {
-  const { shop, appEmbedEnabled, settings, redirectToBilling } = useLoaderData();
+  const { shop, appEmbedEnabled, settings, redirectToBilling, isCountryBlockerEnabled } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -331,13 +204,13 @@ export default function Index() {
   useEffect(() => {
     if (appEmbedEnabled && !completedTasks.includes("configure-settings")) {
       // Small delay to allow the page to render first
-        const timer = setTimeout(() => {
-          navigate("/app/settings");
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
+      const timer = setTimeout(() => {
+        navigate("/app/settings");
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
     if (redirectToBilling) {
-        window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
+      window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
       //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
   }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
@@ -349,12 +222,20 @@ export default function Index() {
     }
   }, [completedTasks]);
 
+  const [hasEnabledEmbed,setHasEnabledEmbed] = useState(isCountryBlockerEnabled);
+
   const markTaskComplete = useCallback((taskId) => {
+
+    if(taskId === "setup-embedded") {
+      setHasEnabledEmbed(true);
+    }
+
     setCompletedTasks(prev => [...prev, taskId]);
   }, []);
 
   // Check if app embed is enabled
-  const hasEnabledEmbed = appEmbedEnabled;
+
+  console.log(typeof hasEnabledEmbed, hasEnabledEmbed);
   const shouldRedirect = appEmbedEnabled && !completedTasks.includes("configure-settings");
 
   const tasks = [
@@ -458,14 +339,14 @@ export default function Index() {
   // Add the styles once when component mounts
   useEffect(() => {
     if (typeof document !== 'undefined') {
-        const styleSheet = document.createElement("style");
-        styleSheet.textContent = taskBoxStyles;
-        document.head.appendChild(styleSheet);
-        return () => {
+      const styleSheet = document.createElement("style");
+      styleSheet.textContent = taskBoxStyles;
+      document.head.appendChild(styleSheet);
+      return () => {
         if (document.head.contains(styleSheet)) {
           document.head.removeChild(styleSheet);
-          }
-        };
+        }
+      };
     }
   }, []);
 
@@ -530,7 +411,7 @@ export default function Index() {
                 <Collapsible open={isExpanded}>
                   <BlockStack>
                     {tasks.map((task, index) => {
-                      const isCompleted = task.completed || completedTasks.includes(task.id);
+                      const isCompleted = task.id == "setup-embedded" ? task.completed : (task.completed || completedTasks.includes(task.id));
 
                       return (
                         <Box
@@ -583,21 +464,7 @@ export default function Index() {
                                   handleReviewRequest();
                                 } else {
                                   if (task.url.startsWith('/admin/')) {
-
                                     window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
-
-                                    // navigate(`${shop.primaryDomain.url}${task.url}`,{
-                                    //   replace: false,
-                                    //   target: 'new',
-                                    // });
-
-                                    // redirect.dispatch(Redirect.Action.REMOTE, {
-                                    //   url: 'http://example.com',
-                                    //   newContext: true,
-                                    // });
-
-                                    // alert(`${shop.primaryDomain.url}${task.url}`);
-                                    // window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
                                   } else {
                                     navigate(task.url);
                                   }
