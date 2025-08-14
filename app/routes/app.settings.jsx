@@ -175,7 +175,7 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                 Country Blocking Configuration
                             </Text>
                             <RadioButton
-                                label="Block listed countries and IP addresses (Blacklist)"
+                                label="Block countries and IP addresses (Blacklist)"
                                 helpText="Block access from specified countries and IP addresses"
                                 checked={formData.blockingMode === 'allow'}
                                 id="allow"
@@ -183,7 +183,7 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                 onChange={handleModeChange}
                             />
                             <RadioButton
-                                label="Allow only listed countries and IP addresses (Whitelist)"
+                                label="Allow countries and IP addresses (Whitelist)"
                                 helpText="Only allow access from specified countries and IP addresses"
                                 id="whitelist"
                                 name="accounts"

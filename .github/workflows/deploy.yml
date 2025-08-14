@@ -1,0 +1,28 @@
+name: Deploy Country Blocker
+
+on:
+  push:
+    branches:
+      - main  # or the branch you want to deploy from
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up SSH keys
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to Server
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@your-server-ip << 'EOF'
+            cd /root/shopify-apps/country-blocker
+            git pull origin main
+            docker-compose down
+            docker-compose up -d --build
+          EOF

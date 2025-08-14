@@ -3,7 +3,7 @@
 client_id = "ba084c5d2a53dc94b3473b93b22b64be"
 name = "country-blocker"
 handle = "country-blocker-9"
-application_url = "https://lance-inn-mines-visitor.trycloudflare.com"
+application_url = "https://literally-angeles-macro-explosion.trycloudflare.com"
 embedded = true
 
 [build]
@@ -22,7 +22,7 @@ api_version = "2024-07"
 scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects,read_themes"
 
 [auth]
-redirect_urls = ["https://lance-inn-mines-visitor.trycloudflare.com/auth/callback", "https://lance-inn-mines-visitor.trycloudflare.com/auth/shopify/callback", "https://lance-inn-mines-visitor.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://literally-angeles-macro-explosion.trycloudflare.com/auth/callback", "https://literally-angeles-macro-explosion.trycloudflare.com/auth/shopify/callback", "https://literally-angeles-macro-explosion.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
