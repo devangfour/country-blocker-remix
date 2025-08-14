@@ -20,7 +20,7 @@ jobs:
 
       - name: Deploy to Server
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@your-server-ip << 'EOF'
+          ssh -o StrictHostKeyChecking=no ubuntu@143.110.251.53 << 'EOF'
             cd /root/shopify-apps/country-blocker
             git pull origin main
             docker-compose down
