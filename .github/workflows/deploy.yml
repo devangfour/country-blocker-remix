@@ -23,6 +23,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@143.110.251.53 << 'EOF'
             cd /root/shopify-apps/country-blocker-remix
             git pull origin main
+            npm install
+            npm run build
             docker compose down
             docker compose up -d --build
           EOF
