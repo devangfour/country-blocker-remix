@@ -6,6 +6,8 @@ EXPOSE 3001
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=3001
+ENV HOST=0.0.0.0
 
 COPY package.json package-lock.json* ./
 
