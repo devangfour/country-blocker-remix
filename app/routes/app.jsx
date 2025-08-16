@@ -10,7 +10,7 @@ export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
 
-  return { apiKey: import.meta.env.SHOPIFY_API_KEY || "" };
+  return { apiKey: import.meta.env.SHOPIFY_API_KEY || "ba084c5d2a53dc94b3473b93b22b64be" };
 };
 
 export default function App() {
