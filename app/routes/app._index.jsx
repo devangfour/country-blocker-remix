@@ -161,7 +161,14 @@ export async function loader({ request }) {
   // Get shop info
   const { admin } = await authenticate.admin(request);
 
+  console.log("admin:", admin);
+  console.log("shop:", shop);
+  console.log("Session:", session);
+  console.log("Request URL:", request);
+
   let shopResponse = await getShopData(admin);
+
+  console.log("Shop response:", shopResponse);
 
   let redirectToBilling = false;
   const hasActivePlan = await hasActiveSubscription(admin);
