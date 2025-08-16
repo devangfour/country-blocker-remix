@@ -24,7 +24,7 @@ import CountryBlockerSettings from "../models/CountryBlockerSettings.js";
 import SettingsPage from "./app.settings";
 import { ChevronDownIcon, ChevronUpIcon } from '@shopify/polaris-icons';
 import { uploadToShopify } from "../utils/uploadToShopify.server";
-import { getDefaultSettings, getShopData, hasActiveSubscription, isExtensionEnabled, saveMetafields } from "../utils/extension.server.jsx";
+import { getDefaultSettings, hasActiveSubscription, isExtensionEnabled, saveMetafields } from "../utils/extension.server.jsx";
 
 
 export async function action({ request }) {
@@ -76,7 +76,7 @@ export async function action({ request }) {
     const blockBy = formData.get("blockBy") || "country"; // Add the new blockBy field
 
     // Extract store name from session.shop (remove .myshopify.com)
-    const storeName = shop.split('.')[0];
+    const storeName = shop;
 
 
     // Handle file upload if present
@@ -166,7 +166,7 @@ export async function loader({ request }) {
   console.log("Session:", session);
   console.log("Request URL:", request);
 
-  let shopResponse = await getShopData(admin);
+  let shopResponse = `https://${session.shop}` // await getShopData(admin);
 
   console.log("Shop response:", shopResponse);
 
@@ -176,14 +176,14 @@ export async function loader({ request }) {
     redirectToBilling = true;
   }
 
-  const shopData = await shopResponse.json();
+  const shopData = shopResponse;
   const isCountryBlockerEnabled = await isExtensionEnabled(admin);
 
   // Get settings from database
   const settings = await CountryBlockerSettings.findOne({ shop });
 
   return json({
-    shop: shopData.data.shop,
+    shop: shopData,
     appEmbedEnabled: settings?.appEmbedEnabled || false,
     settings: settings || getDefaultSettings(),
     redirectToBilling,
@@ -217,7 +217,7 @@ export default function Index() {
       return () => clearTimeout(timer);
     }
     if (redirectToBilling) {
-      window.open(`${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`, "_top");
+      window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
       //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
   }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
@@ -471,7 +471,7 @@ export default function Index() {
                                   handleReviewRequest();
                                 } else {
                                   if (task.url.startsWith('/admin/')) {
-                                    window.open(`${shop.primaryDomain.url}${task.url}`, '_blank');
+                                    window.open(`${shop}${task.url}`, '_blank');
                                   } else {
                                     navigate(task.url);
                                   }
