@@ -69,7 +69,7 @@ export async function hasActiveSubscription(admin) {
     // Check if the response is ok before parsing
     if (!subscriptionExec.ok) {
       console.error("GraphQL request failed:", subscriptionExec.status, subscriptionExec.statusText);
-      // return true; // Default to true to prevent redirect loops
+      return true; // Default to true to prevent redirect loops
     }
 
     const subscriptionRes = await subscriptionExec.json();
@@ -77,7 +77,7 @@ export async function hasActiveSubscription(admin) {
     // Check for GraphQL errors
     if (subscriptionRes.errors) {
       console.error("GraphQL errors:", subscriptionRes.errors);
-      // return true; // Default to true to prevent redirect loops
+      return true; // Default to true to prevent redirect loops
     }
 
     const activeSubscriptions = subscriptionRes?.data?.currentAppInstallation?.activeSubscriptions;
@@ -87,7 +87,7 @@ export async function hasActiveSubscription(admin) {
     // If no subscriptions data, assume they have access
     if (!activeSubscriptions || activeSubscriptions.length === 0) {
       console.log("No subscriptions found, allowing access");
-      // return true;
+      return true;
     }
     
     return activeSubscriptions.some(
@@ -96,7 +96,7 @@ export async function hasActiveSubscription(admin) {
   } catch (error) {
     console.error("Error checking active subscription:", error);
     // Return true to prevent infinite redirects when subscription check fails
-    // return true;
+    return true;
   }
 }
 
