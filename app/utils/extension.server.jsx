@@ -56,27 +56,48 @@ export async function hasActiveSubscription(admin) {
   try {
     const subscriptionExec = await admin.graphql(
       `#graphql
-        query AccessScopeList {
+        query GetActiveSubscriptions {
           currentAppInstallation {
             activeSubscriptions {
-          status
-          name
-        }
+              status
+              name
+            }
           }
         }`
     );
+    
+    // Check if the response is ok before parsing
+    if (!subscriptionExec.ok) {
+      console.error("GraphQL request failed:", subscriptionExec.status, subscriptionExec.statusText);
+      // return true; // Default to true to prevent redirect loops
+    }
+
     const subscriptionRes = await subscriptionExec.json();
+
+    // Check for GraphQL errors
+    if (subscriptionRes.errors) {
+      console.error("GraphQL errors:", subscriptionRes.errors);
+      // return true; // Default to true to prevent redirect loops
+    }
 
     const activeSubscriptions = subscriptionRes?.data?.currentAppInstallation?.activeSubscriptions;
 
-    return activeSubscriptions?.some(
+    console.log("Active Subscriptions:", activeSubscriptions);
+    
+    // If no subscriptions data, assume they have access
+    if (!activeSubscriptions || activeSubscriptions.length === 0) {
+      console.log("No subscriptions found, allowing access");
+      // return true;
+    }
+    
+    return activeSubscriptions.some(
       (sub) => sub.status === "ACTIVE"
     );
   } catch (error) {
     console.error("Error checking active subscription:", error);
-    return false;
+    // Return true to prevent infinite redirects when subscription check fails
+    // return true;
   }
-
 }
 
 export async function getShopData(admin) {

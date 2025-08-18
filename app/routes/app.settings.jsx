@@ -226,9 +226,9 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                                                 placeholder='US,CA,GB,DE'
                                             />
                                             <p>Enter ISO country codes (Alpha-2 code) separated by commas (e.g., US, CA, GB, DE)</p>
-                                            <a href="https://www.iban.com/country-codes" target="_blank" rel="noopener noreferrer">
+                                            <Link url="https://www.iban.com/country-codes" external={true}>
                                                 <span style={linkStyle}>Find country codes from here</span>
-                                            </a>
+                                            </Link>
                                         </div>
                                     )}
 

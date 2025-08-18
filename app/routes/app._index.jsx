@@ -36,7 +36,7 @@ export async function action({ request }) {
   const formData = await request.formData();
   const action = formData.get("action");
 
-  if(action == 'check_extension') {
+  if (action == 'check_extension') {
     const isEnabled = await isExtensionEnabled(admin);
     return json({ "extension_status": isEnabled });
   }
@@ -153,13 +153,18 @@ export async function action({ request }) {
 }
 
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request,{ isOnline: true });
   const { shop } = session;
+
+
+  console.log("Session data: ", session);
+  console.log("Shop data", shop);
+
 
   await connectDB();
 
   // Get shop info
-  const { admin } = await authenticate.admin(request);
+  //const { admin } = await authenticate.admin(request);
 
   console.log("admin:", admin);
   console.log("shop:", shop);
@@ -171,6 +176,7 @@ export async function loader({ request }) {
   console.log("Shop response:", shopResponse);
 
   let redirectToBilling = false;
+  console.log("activeSubscriptions", "start checking")
   const hasActivePlan = await hasActiveSubscription(admin);
   if (!hasActivePlan) {
     redirectToBilling = true;
@@ -229,11 +235,11 @@ export default function Index() {
     }
   }, [completedTasks]);
 
-  const [hasEnabledEmbed,setHasEnabledEmbed] = useState(isCountryBlockerEnabled);
+  const [hasEnabledEmbed, setHasEnabledEmbed] = useState(isCountryBlockerEnabled);
 
   const markTaskComplete = useCallback((taskId) => {
 
-    if(taskId === "setup-embedded") {
+    if (taskId === "setup-embedded") {
       setHasEnabledEmbed(true);
     }
 
