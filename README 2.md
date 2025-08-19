@@ -1,10 +1,6 @@
-# Shopify App Template - Remix
+# Country Blocker - Shopify App
 
-This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using the [Remix](https://remix.run) framework.
-
-Rather than cloning this repo, you can use your preferred package manager and the Shopify CLI with [these steps](https://shopify.dev/docs/apps/getting-started/create).
-
-Visit the [`shopify.dev` documentation](https://shopify.dev/docs/api/shopify-app-remix) for more details on the Remix app package.
+This is a Shopify app for blocking access from specific countries using the [Remix](https://remix.run) framework and MongoDB.
 
 ## Quick start
 
@@ -15,6 +11,25 @@ Before you begin, you'll need the following:
 1. **Node.js**: [Download and install](https://nodejs.org/en/download/) it if you haven't already.
 2. **Shopify Partner Account**: [Create an account](https://partners.shopify.com/signup) if you don't have one.
 3. **Test Store**: Set up either a [development store](https://help.shopify.com/en/partners/dashboard/development-stores#create-a-development-store) or a [Shopify Plus sandbox store](https://help.shopify.com/en/partners/dashboard/managing-stores/plus-sandbox-store) for testing your app.
+4. **MongoDB**: Either install [MongoDB locally](https://www.mongodb.com/try/download/community) or set up [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (free tier available).
+
+### Database Setup
+
+#### Option 1: MongoDB Atlas (Recommended for production)
+1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster
+3. Get your connection string and update `.env` file:
+   ```
+   DATABASE_URL="mongodb+srv://username:password@cluster.mongodb.net/country-blocker"
+   ```
+
+#### Option 2: Local MongoDB
+1. Install MongoDB Community Edition
+2. Start MongoDB service
+3. Use the default connection string in `.env`:
+   ```
+   DATABASE_URL="mongodb://localhost:27017/country-blocker"
+   ```
 
 ### Setup
 
