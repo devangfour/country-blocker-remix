@@ -52,11 +52,31 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         handleFieldChange('blockBy', blockByValue);
     }, [handleFieldChange]);
 
+    const handleRemoveFile = useCallback((indexToRemove) => {
+        setFiles((files) => files.filter((_, index) => index !== indexToRemove));
+        if (files.length === 1) {
+            // If removing the last file, hide save bar if no other changes
+            // You might want to add additional logic here based on your app's state management
+        }
+    }, [files.length]);
+
     const handleDrop = useCallback(
         (_droppedFiles, acceptedFiles, rejectedFiles) => {
-            setFiles((files) => [...files, ...acceptedFiles]);
-            setRejectedFiles(rejectedFiles);
-            if (acceptedFiles.length > 0) {
+            // Filter files by size (1MB = 1048576 bytes)
+            const MAX_FILE_SIZE = 1048576; // 1MB in bytes
+            const validFiles = acceptedFiles.filter(file => file.size <= MAX_FILE_SIZE);
+            const oversizedFiles = acceptedFiles.filter(file => file.size > MAX_FILE_SIZE);
+            
+            // Add size error messages for oversized files
+            const sizeRejectedFiles = oversizedFiles.map(file => ({
+                ...file,
+                errors: [{ code: 'file-too-large', message: `File size exceeds 1MB limit (${(file.size / 1048576).toFixed(2)}MB)` }]
+            }));
+            
+            setFiles((files) => [...files, ...validFiles]);
+            setRejectedFiles([...rejectedFiles, ...sizeRejectedFiles]);
+            
+            if (validFiles.length > 0) {
                 app.saveBar.show('country-blocker-save-bar');
             }
         },
@@ -79,9 +99,15 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
         formDataToSubmit.append("blockedIpAddresses", formData.blockedIpAddresses);
         formDataToSubmit.append("blockBy", formData.blockBy); // Add the new blockBy field
 
-        // Add file if uploaded
+        // Add file if uploaded and validate size again before submit
         if (files.length > 0) {
-            formDataToSubmit.append('logoFile', files[0]);
+            const file = files[0];
+            if (file.size <= 1048576) { // Double-check 1MB limit
+                formDataToSubmit.append('logoFile', file);
+            } else {
+                console.error('File size exceeds 1MB limit');
+                return; // Don't submit if file is too large
+            }
         }
 
         // Keep existing logo URL if no new file is uploaded
@@ -127,12 +153,29 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                         alt={file.name}
                         source={window.URL.createObjectURL(file)}
                     />
-                    <div>
-                        {file.name}{' '}
-                        <Text variant="bodySm" as="p">
-                            {file.size} bytes
+                    <div style={{ flex: 1 }}>
+                        <Text variant="bodyMd" as="p">
+                            {file.name}
+                        </Text>
+                        <Text variant="bodySm" as="p" tone="subdued">
+                            {(file.size / 1024).toFixed(1)} KB
                         </Text>
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => handleRemoveFile(index)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#bf0711',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            fontSize: '14px'
+                        }}
+                        title="Remove file"
+                    >
+                        ✕
+                    </button>
                 </LegacyStack>
             ))}
         </LegacyStack>
@@ -143,7 +186,10 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
             <List type="bullet">
                 {rejectedFiles.map((file, index) => (
                     <List.Item key={index}>
-                        {`"${file.name}" is not supported. File type must be .gif, .jpg, .png or .svg.`}
+                        {file.errors && file.errors.length > 0 
+                            ? file.errors[0].message
+                            : `"${file.name}" is not supported. File type must be .gif, .jpg, .png or .svg.`
+                        }
                     </List.Item>
                 ))}
             </List>
@@ -324,6 +370,9 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                             <Text variant="headingMd" as="h6">
                                 Logo Upload
                             </Text>
+                            <Text variant="bodyMd" as="p" tone="subdued">
+                                Upload a logo image (max 1MB). Supported formats: .gif, .jpg, .jpeg, .png, .svg
+                            </Text>
                             {initialSettings?.logoUrl && (
                                 <div style={{ marginBottom: '1rem' }}>
                                     <Text variant="bodyMd" as="p" tone="subdued">Current logo:</Text>
@@ -338,7 +387,12 @@ export default function SettingsPage({ initialSettings, submit, isLoading, app }
                             )}
                             <LegacyStack vertical>
                                 {errorMessage}
-                                <DropZone accept="image/*" type="image" onDrop={handleDrop}>
+                                <DropZone 
+                                    accept="image/*" 
+                                    type="image" 
+                                    onDrop={handleDrop}
+                                    allowMultiple={false}
+                                >
                                     {uploadedFiles}
                                     {fileUpload}
                                 </DropZone>
