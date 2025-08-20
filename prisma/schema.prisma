@@ -5,23 +5,22 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// MongoDB datasource configuration
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
-  id            String    @id
+  session_id    String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @unique
   shop          String
   state         String
   isOnline      Boolean   @default(false)
   scope         String?
   expires       DateTime?
   accessToken   String
-  userId        BigInt?
+  userId        String? // Changed from BigInt to String for MongoDB
   firstName     String?
   lastName      String?
   email         String?
@@ -29,6 +28,8 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
+
+  @@map("sessions")
 }
 
 model CountryBlockerSettings {
@@ -38,14 +39,14 @@ model CountryBlockerSettings {
   countryList          String   @default("")
   blockPageTitle       String   @default("Access Restricted")
   blockPageDescription String   @default("This store is not available in your country.")
-  textColor           String   @default("#ffffff")
-  backgroundColor     String   @default("#ffffff")
-  boxBackgroundColor  String   @default("#ff8901")
-  logoUrl             String?
-  blockedIpAddresses  String   @default("")
-  appEmbedEnabled     Boolean  @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  textColor            String   @default("#ffffff")
+  backgroundColor      String   @default("#ffffff")
+  boxBackgroundColor   String   @default("#ff8901")
+  logoUrl              String?
+  blockedIpAddresses   String   @default("")
+  appEmbedEnabled      Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@map("country_blocker_settings")
 }
