@@ -45,6 +45,7 @@ model CountryBlockerSettings {
   boxBackgroundColor   String   @default("#ff8901")
   logoUrl              String?
   blockedIpAddresses   String   @default("")
+  blockBy              String   @default("country")
   appEmbedEnabled      Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
