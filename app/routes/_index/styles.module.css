@@ -71,3 +71,35 @@
     padding-bottom: 1rem;
   }
 }
+
+
+.whatsappButton {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 160px;
+  height: 50px;
+  z-index: 1000;
+  background-color: #25d366;
+  border-radius: 15px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  text-decoration: none;
+  color: white;
+  font-size: 14px;
+  padding: 10px;
+  transition: width 0.3s, height 0.3s;
+}
+
+.whatsappButton svg {
+  width: 30px;
+  height: 30px;
+}
+
+.whatsappButton .whatsappText {
+  display: inline;
+  font-weight: 600;
+}
