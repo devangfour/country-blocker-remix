@@ -72,7 +72,7 @@ if (!customElements.get("country-blocker")) {
         document.body.innerHTML = `
           <div style="position:fixed;top:0;left:0;width:100%;height:100vh;background:${this.dataset.backgroundcolor};display:flex;justify-content:center;align-items:center;z-index:9999;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
             <div style="background:${this.dataset.boxbackgroundcolor};border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,0.15);padding:40px;text-align:center;max-width:90%;width:360px">
-              <img src="${this.config.logoUrl}" alt="Country Blocker" width="64" height="64" style="margin-bottom:20px">
+              <img src="${this.config.logoUrl}" alt="Country Blocker" width="64" height="64" style="margin-bottom:20px;object-fit:cover;">
               ${this.dataset.blockpagetitle ? `<h2 style="color:${this.dataset.textcolor};font-size:2rem;margin-bottom:10px;font-weight:bold">${this.dataset.blockpagetitle}</h2>` : ""}
               ${this.dataset.blockpagedescription ? `<p style="color:${this.dataset.textcolor};font-size:1.3rem">${this.dataset.blockpagedescription}</p>` : ""}
             </div>
