@@ -2,7 +2,7 @@
 
 client_id = "ba084c5d2a53dc94b3473b93b22b64be"
 name = "country-blocker"
-handle = "country-blocker-9"
+handle = "country-blocker"
 application_url = "https://scientific-hungary-eve-damaged.trycloudflare.com"
 embedded = true
 
@@ -25,3 +25,4 @@ embedded = false
 
 [build]
 automatically_update_urls_on_dev = true
+include_config_on_deploy = false

@@ -236,7 +236,7 @@ export default function Index() {
       return () => clearTimeout(timer);
     }
     if (redirectToBilling) {
-      window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
+      window.open(`${shop}/admin/charges/country-blocker/pricing_plans`, "_top");
       //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
   }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
