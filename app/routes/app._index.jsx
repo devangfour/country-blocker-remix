@@ -256,15 +256,21 @@ export default function Index() {
   // Check extension and subscription status with fetchers
   useEffect(() => {
     const checkExtensionStatus = () => {
-      const formData = new FormData();
-      formData.append("action", "check_extension");
-      extensionFetcher.submit(formData, { method: "post" });
+      // Only check if not already loading
+      if (extensionFetcher.state === 'idle') {
+        const formData = new FormData();
+        formData.append("action", "check_extension");
+        extensionFetcher.submit(formData, { method: "post" });
+      }
     };
 
     const checkSubscriptionStatus = () => {
-      const formData = new FormData();
-      formData.append("action", "check_subscription");
-      subscriptionFetcher.submit(formData, { method: "post" });
+      // Only check if not already loading
+      if (subscriptionFetcher.state === 'idle') {
+        const formData = new FormData();
+        formData.append("action", "check_subscription");
+        subscriptionFetcher.submit(formData, { method: "post" });
+      }
     };
 
     // Check on mount
@@ -279,22 +285,32 @@ export default function Index() {
       clearInterval(extensionInterval);
       clearInterval(subscriptionInterval);
     };
-  }, [extensionFetcher, subscriptionFetcher]);
+  }, []); // Remove fetchers from dependency array to prevent recreating intervals
 
   // Update extension status when fetcher returns data
   useEffect(() => {
-    if (extensionFetcher.data?.extension_status !== undefined) {
-      setExtensionEnabled(extensionFetcher.data.extension_status);
+    if (extensionFetcher.data?.extension_status !== undefined && extensionFetcher.state === 'idle') {
+      const newStatus = extensionFetcher.data.extension_status;
+      if (newStatus !== extensionEnabled) {
+        setExtensionEnabled(newStatus);
+      }
     }
-  }, [extensionFetcher.data]);
+  }, [extensionFetcher.data, extensionFetcher.state, extensionEnabled]);
 
   // Update subscription status when fetcher returns data
   useEffect(() => {
-    if (subscriptionFetcher.data?.subscription_status !== undefined) {
-      setHasActiveSubscription(subscriptionFetcher.data.subscription_status);
-      setRedirectToBilling(!subscriptionFetcher.data.subscription_status);
+    if (subscriptionFetcher.data?.subscription_status !== undefined && subscriptionFetcher.state === 'idle') {
+      const newHasSubscription = subscriptionFetcher.data.subscription_status;
+      const newRedirectToBilling = !newHasSubscription;
+      
+      if (newHasSubscription !== hasActiveSubscription) {
+        setHasActiveSubscription(newHasSubscription);
+      }
+      if (newRedirectToBilling !== redirectToBilling) {
+        setRedirectToBilling(newRedirectToBilling);
+      }
     }
-  }, [subscriptionFetcher.data]);
+  }, [subscriptionFetcher.data, subscriptionFetcher.state, hasActiveSubscription, redirectToBilling]);
 
   const [hasEnabledEmbed, setHasEnabledEmbed] = useState(extensionEnabled);
 
