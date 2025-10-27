@@ -6,8 +6,8 @@ if (!customElements.get("country-blocker")) {
         super();
         this.config = {
           mode: this.dataset.blockingmode,
-          countries: this.dataset.countrylist?.split(",") || [],
-          ips: this.dataset.blockedipaddresses?.split(",") || [],
+          countries: this.dataset.countrylist?.split(",").map(c => c.trim()) || [],
+          ips: this.dataset.blockedipaddresses?.split(",").map(ip => ip.trim()) || [],
           blockBy: this.dataset.blockby, // Add blockBy configuration
           logoUrl:
             this.dataset.logourl ||
@@ -38,7 +38,7 @@ if (!customElements.get("country-blocker")) {
           // Country-wise blocking
           if (countries.length > 0 && countries[0] !== "") {
             return mode === "allow"
-              ? countries.includes(countryCode)
+              ? !countries.includes(countryCode)
               : mode === "whitelist"
                 ? !countries.includes(countryCode)
                 : false;
@@ -93,6 +93,10 @@ if (!customElements.get("country-blocker")) {
           try {
             const response = await fetch(api);
             const data = await response.json();
+
+            console.log("Country Blocker API Response:", data);
+            console.log("Country Blocker Using API:", api);
+            console.log("Country Blocker Config:", this.shouldBlock(data, api));
 
             if (this.shouldBlock(data, api)) {
               this.showBlockPage();

@@ -3,7 +3,7 @@
 client_id = "ba084c5d2a53dc94b3473b93b22b64be"
 name = "country-blocker"
 handle = "country-blocker-9"
-application_url = "https://scientific-hungary-eve-damaged.trycloudflare.com"
+application_url = "https://country-blocker.devoptly.com"
 embedded = true
 
 [webhooks]
@@ -18,11 +18,10 @@ api_version = "2024-07"
 scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects,read_themes"
 
 [auth]
-redirect_urls = ["https://scientific-hungary-eve-damaged.trycloudflare.com/auth/callback", "https://scientific-hungary-eve-damaged.trycloudflare.com/auth/shopify/callback", "https://scientific-hungary-eve-damaged.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://country-blocker.devoptly.com/auth/callback", "https://country-blocker.devoptly.com/auth/shopify/callback", "https://country-blocker.devoptly.com/api/auth/callback"]
 
 [pos]
 embedded = false
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = false
