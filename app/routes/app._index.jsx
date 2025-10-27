@@ -15,7 +15,7 @@ import {
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useNavigation, useSubmit, useActionData } from "@remix-run/react";
+import { useNavigate, useNavigation, useSubmit, useActionData, useFetcher } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
@@ -36,6 +36,11 @@ export async function action({ request }) {
   if (action == 'check_extension') {
     const isEnabled = await isExtensionEnabled(admin);
     return { "extension_status": isEnabled };
+  }
+
+  if (action == 'check_subscription') {
+    const hasActivePlan = await hasActiveSubscription(admin);
+    return { "subscription_status": hasActivePlan };
   }
 
   // Existing embed actions
@@ -186,15 +191,7 @@ export async function loader({ request }) {
 
   console.log("Shop response:", shopResponse);
 
-  let redirectToBilling = false;
-  console.log("activeSubscriptions", "start checking")
-  const hasActivePlan = await hasActiveSubscription(admin);
-  if (!hasActivePlan) {
-    redirectToBilling = true;
-  }
-
   const shopData = shopResponse;
-  const isCountryBlockerEnabled = await isExtensionEnabled(admin);
 
   // Get settings from database
   const settings = await prisma.countryBlockerSettings.findUnique({
@@ -205,17 +202,22 @@ export async function loader({ request }) {
     shop: shopData,
     appEmbedEnabled: settings?.appEmbedEnabled || false,
     settings: settings || getDefaultSettings(),
-    redirectToBilling,
-    isCountryBlockerEnabled
   };
 }
 
 export default function Index() {
-  const { shop, appEmbedEnabled, settings, redirectToBilling, isCountryBlockerEnabled } = useLoaderData();
+  const { shop, appEmbedEnabled, settings } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
   const app = useAppBridge();
+  const extensionFetcher = useFetcher();
+  const subscriptionFetcher = useFetcher();
+
+  // State for extension and subscription status
+  const [extensionEnabled, setExtensionEnabled] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(true); // Default to true to avoid immediate redirect
+  const [redirectToBilling, setRedirectToBilling] = useState(false);
 
   // Get progress from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -235,11 +237,14 @@ export default function Index() {
       }, 1000);
       return () => clearTimeout(timer);
     }
+  }, [appEmbedEnabled, completedTasks, navigate]);
+
+  // Handle billing redirect
+  useEffect(() => {
     if (redirectToBilling) {
       window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
-      //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
-  }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
+  }, [redirectToBilling, shop]);
 
   // Save progress to localStorage
   useEffect(() => {
@@ -248,7 +253,55 @@ export default function Index() {
     }
   }, [completedTasks]);
 
-  const [hasEnabledEmbed, setHasEnabledEmbed] = useState(isCountryBlockerEnabled);
+  // Check extension and subscription status with fetchers
+  useEffect(() => {
+    const checkExtensionStatus = () => {
+      const formData = new FormData();
+      formData.append("action", "check_extension");
+      extensionFetcher.submit(formData, { method: "post" });
+    };
+
+    const checkSubscriptionStatus = () => {
+      const formData = new FormData();
+      formData.append("action", "check_subscription");
+      subscriptionFetcher.submit(formData, { method: "post" });
+    };
+
+    // Check on mount
+    checkExtensionStatus();
+    checkSubscriptionStatus();
+
+    // Check periodically every 10 seconds
+    const extensionInterval = setInterval(checkExtensionStatus, 10000);
+    const subscriptionInterval = setInterval(checkSubscriptionStatus, 30000); // Check subscription less frequently
+
+    return () => {
+      clearInterval(extensionInterval);
+      clearInterval(subscriptionInterval);
+    };
+  }, [extensionFetcher, subscriptionFetcher]);
+
+  // Update extension status when fetcher returns data
+  useEffect(() => {
+    if (extensionFetcher.data?.extension_status !== undefined) {
+      setExtensionEnabled(extensionFetcher.data.extension_status);
+    }
+  }, [extensionFetcher.data]);
+
+  // Update subscription status when fetcher returns data
+  useEffect(() => {
+    if (subscriptionFetcher.data?.subscription_status !== undefined) {
+      setHasActiveSubscription(subscriptionFetcher.data.subscription_status);
+      setRedirectToBilling(!subscriptionFetcher.data.subscription_status);
+    }
+  }, [subscriptionFetcher.data]);
+
+  const [hasEnabledEmbed, setHasEnabledEmbed] = useState(extensionEnabled);
+
+  // Update hasEnabledEmbed when extensionEnabled changes
+  useEffect(() => {
+    setHasEnabledEmbed(extensionEnabled);
+  }, [extensionEnabled]);
 
   const markTaskComplete = useCallback((taskId) => {
 
