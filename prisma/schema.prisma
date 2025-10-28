@@ -34,21 +34,24 @@ model Session {
 }
 
 model CountryBlockerSettings {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  shop                 String   @unique
-  blockingMode         String   @default("allow")
-  countryList          String   @default("")
-  blockPageTitle       String   @default("Access Restricted")
-  blockPageDescription String   @default("This store is not available in your country.")
-  textColor            String   @default("#ffffff")
-  backgroundColor      String   @default("#ffffff")
-  boxBackgroundColor   String   @default("#ff8901")
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  shop                 String    @unique
+  blockingMode         String    @default("allow")
+  countryList          String    @default("")
+  blockPageTitle       String    @default("Access Restricted")
+  blockPageDescription String    @default("This store is not available in your country.")
+  textColor            String    @default("#ffffff")
+  backgroundColor      String    @default("#ffffff")
+  boxBackgroundColor   String    @default("#ff8901")
   logoUrl              String?
-  blockedIpAddresses   String   @default("")
-  blockBy              String   @default("country")
-  appEmbedEnabled      Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  blockedIpAddresses   String    @default("")
+  blockBy              String    @default("country")
+  appEmbedEnabled      Boolean   @default(false)
+  isFirstTimeUser      Boolean   @default(true)
+  hasSeenPricingPage   Boolean   @default(false)
+  firstPricingRedirectAt DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("country_blocker_settings")
 }

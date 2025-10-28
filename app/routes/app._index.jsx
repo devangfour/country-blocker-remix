@@ -15,7 +15,7 @@ import {
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useNavigation, useSubmit, useActionData } from "@remix-run/react";
+import { useNavigate, useNavigation, useSubmit, useActionData, useFetcher } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
@@ -36,6 +36,62 @@ export async function action({ request }) {
   if (action == 'check_extension') {
     const isEnabled = await isExtensionEnabled(admin);
     return { "extension_status": isEnabled };
+  }
+
+  // Save first-time pricing redirect
+  if (action === "save_first_time_redirect") {
+    try {
+      await prisma.countryBlockerSettings.upsert({
+        where: { shop },
+        update: { 
+          isFirstTimeUser: false,
+          hasSeenPricingPage: true,
+          firstPricingRedirectAt: new Date(),
+          updatedAt: new Date(),
+        },
+        create: { 
+          shop, 
+          isFirstTimeUser: false,
+          hasSeenPricingPage: true,
+          firstPricingRedirectAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      });
+
+      return { success: true, message: "First-time pricing redirect saved" };
+    } catch (error) {
+      console.error("Error saving first-time redirect:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Reset first-time user status (for testing)
+  if (action === "reset_first_time_user") {
+    try {
+      await prisma.countryBlockerSettings.upsert({
+        where: { shop },
+        update: { 
+          isFirstTimeUser: true,
+          hasSeenPricingPage: false,
+          firstPricingRedirectAt: null,
+          updatedAt: new Date(),
+        },
+        create: { 
+          shop, 
+          isFirstTimeUser: true,
+          hasSeenPricingPage: false,
+          firstPricingRedirectAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      });
+
+      return { success: true, message: "First-time user status reset" };
+    } catch (error) {
+      console.error("Error resetting first-time user:", error);
+      return { success: false, error: error.message };
+    }
   }
 
   // Existing embed actions
@@ -201,21 +257,29 @@ export async function loader({ request }) {
     where: { shop },
   });
 
+  // Check if this is a first-time user
+  const isFirstTimeUser = settings ? settings.isFirstTimeUser : true;
+  const hasSeenPricingPage = settings ? settings.hasSeenPricingPage : false;
+
   return {
     shop: shopData,
     appEmbedEnabled: settings?.appEmbedEnabled || false,
     settings: settings || getDefaultSettings(),
     redirectToBilling,
-    isCountryBlockerEnabled
+    isCountryBlockerEnabled,
+    isFirstTimeUser,
+    hasSeenPricingPage,
+    firstPricingRedirectAt: settings?.firstPricingRedirectAt || null,
   };
 }
 
 export default function Index() {
-  const { shop, appEmbedEnabled, settings, redirectToBilling, isCountryBlockerEnabled } = useLoaderData();
+  const { shop, appEmbedEnabled, settings, redirectToBilling, isCountryBlockerEnabled, isFirstTimeUser, hasSeenPricingPage, firstPricingRedirectAt } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
   const app = useAppBridge();
+  const fetcher = useFetcher();
 
   // Get progress from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -235,11 +299,22 @@ export default function Index() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-    if (redirectToBilling) {
+  }, [appEmbedEnabled, completedTasks, navigate]);
+
+  // Handle first-time user redirect (higher priority than billing redirect)
+  useEffect(() => {
+    if (isFirstTimeUser && !hasSeenPricingPage) {
+      // Use fetcher to save first-time redirect status
+      const formData = new FormData();
+      formData.append("action", "save_first_time_redirect");
+      fetcher.submit(formData, { method: "POST" });
+      
+      console.log("First-time user redirected to pricing:", `${shop}/admin/charges/country-blocker-9/pricing_plans`);
+      
+      // Redirect to pricing page
       window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
-      //  console.log(shop, `https://${shop.primaryDomain.url}/admin/charges/country-blocker-9/pricing_plans`);
     }
-  }, [appEmbedEnabled, completedTasks, navigate, redirectToBilling, shop]);
+  }, [isFirstTimeUser, hasSeenPricingPage, redirectToBilling, shop, fetcher]);
 
   // Save progress to localStorage
   useEffect(() => {
@@ -348,6 +423,15 @@ export default function Index() {
     }
   }, [actionData, app]); // Changed from actionData?.success to actionData to prevent multiple triggers
 
+  // Handle fetcher responses for first-time user actions
+  useEffect(() => {
+    if (fetcher.data?.success && fetcher.data?.message) {
+      app.toast.show(fetcher.data.message, { isError: false });
+    } else if (fetcher.data?.error) {
+      app.toast.show(`Error: ${fetcher.data.error}`, { isError: true });
+    }
+  }, [fetcher.data, app]);
+
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const taskBoxStyles = `
   .task-box {
@@ -408,6 +492,73 @@ export default function Index() {
                 </p>
               </Banner>
             )}
+
+            {/* First-Time User Debug */}
+            {/* <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">
+                  User Status Debug
+                </Text>
+                <BlockStack gap="200">
+                  <InlineStack gap="300">
+                    <Text as="p"><strong>First Time User:</strong> {isFirstTimeUser ? "Yes" : "No"}</Text>
+                    <Badge tone={isFirstTimeUser ? "warning" : "success"}>
+                      {isFirstTimeUser ? "New User" : "Returning User"}
+                    </Badge>
+                  </InlineStack>
+                  
+                  <InlineStack gap="300">
+                    <Text as="p"><strong>Has Seen Pricing Page:</strong> {hasSeenPricingPage ? "Yes" : "No"}</Text>
+                    <Badge tone={hasSeenPricingPage ? "success" : "critical"}>
+                      {hasSeenPricingPage ? "Seen Pricing" : "Not Seen"}
+                    </Badge>
+                  </InlineStack>
+
+                  {firstPricingRedirectAt && (
+                    <Text as="p" tone="subdued">
+                      <strong>First Pricing Redirect:</strong> {new Date(firstPricingRedirectAt).toLocaleString()}
+                    </Text>
+                  )}
+
+                  <InlineStack gap="300">
+                    <Text as="p"><strong>Current Redirect Status:</strong> {redirectToBilling ? "Should Redirect to Billing" : "No Billing Redirect"}</Text>
+                  </InlineStack>
+
+                  <Text as="p" tone="subdued">
+                    Priority: First-time users → Pricing Page, Returning users without subscription → Billing Page
+                  </Text>
+
+                  <InlineStack gap="200">
+                    <Button 
+                      variant="secondary" 
+                      size="slim"
+                      onClick={() => {
+                        const formData = new FormData();
+                        formData.append("action", "save_first_time_redirect");
+                        fetcher.submit(formData, { method: "POST" });
+                      }}
+                      loading={fetcher.state === "submitting"}
+                    >
+                      Mark as Seen Pricing Page
+                    </Button>
+
+                    <Button 
+                      variant="secondary" 
+                      size="slim"
+                      tone="critical"
+                      onClick={() => {
+                        const formData = new FormData();
+                        formData.append("action", "reset_first_time_user");
+                        fetcher.submit(formData, { method: "POST" });
+                      }}
+                      loading={fetcher.state === "submitting"}
+                    >
+                      Reset to First-Time User
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </BlockStack>
+            </Card> */}
 
 
             {/* Setup Tasks */}
