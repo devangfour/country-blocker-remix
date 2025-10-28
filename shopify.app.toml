@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "ba084c5d2a53dc94b3473b93b22b64be"
-name = "country-blocker"
+name = "Country Blocker"
 handle = "country-blocker-9"
 application_url = "https://country-blocker.devoptly.com"
 embedded = true

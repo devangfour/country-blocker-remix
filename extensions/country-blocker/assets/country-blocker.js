@@ -6,8 +6,8 @@ if (!customElements.get("country-blocker")) {
         super();
         this.config = {
           mode: this.dataset.blockingmode,
-          countries: this.dataset.countrylist?.split(",").map(c => c.trim()) || [],
-          ips: this.dataset.blockedipaddresses?.split(",").map(ip => ip.trim()) || [],
+          countries: this.dataset.countrylist?.split(",") || [],
+          ips: this.dataset.blockedipaddresses?.split(",") || [],
           blockBy: this.dataset.blockby, // Add blockBy configuration
           logoUrl:
             this.dataset.logourl ||
@@ -38,7 +38,7 @@ if (!customElements.get("country-blocker")) {
           // Country-wise blocking
           if (countries.length > 0 && countries[0] !== "") {
             return mode === "allow"
-              ? !countries.includes(countryCode)
+              ? countries.includes(countryCode)
               : mode === "whitelist"
                 ? !countries.includes(countryCode)
                 : false;
