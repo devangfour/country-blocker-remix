@@ -14,7 +14,7 @@ import {
   Icon,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useNavigation, useSubmit, useActionData, useFetcher } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
@@ -280,6 +280,7 @@ export default function Index() {
   const actionData = useActionData();
   const app = useAppBridge();
   const fetcher = useFetcher();
+  const hasRedirectedRef = useRef(false);
 
   // Get progress from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -303,7 +304,9 @@ export default function Index() {
 
   // Handle first-time user redirect (higher priority than billing redirect)
   useEffect(() => {
-    if (isFirstTimeUser && !hasSeenPricingPage) {
+    if (isFirstTimeUser && !hasSeenPricingPage && !hasRedirectedRef.current && fetcher.state === "idle") {
+      hasRedirectedRef.current = true;
+      
       // Use fetcher to save first-time redirect status
       const formData = new FormData();
       formData.append("action", "save_first_time_redirect");
@@ -314,7 +317,7 @@ export default function Index() {
       // Redirect to pricing page
       window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
     }
-  }, [isFirstTimeUser, hasSeenPricingPage, redirectToBilling, shop, fetcher]);
+  }, [isFirstTimeUser, hasSeenPricingPage, shop]);
 
   // Save progress to localStorage
   useEffect(() => {
