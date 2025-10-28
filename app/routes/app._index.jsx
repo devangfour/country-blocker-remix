@@ -279,6 +279,7 @@ export default function Index() {
   const submit = useSubmit();
   const actionData = useActionData();
   const app = useAppBridge();
+  const fetcher = useFetcher();
 
   // Get progress from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
@@ -303,33 +304,17 @@ export default function Index() {
   // Handle first-time user redirect (higher priority than billing redirect)
   useEffect(() => {
     if (isFirstTimeUser && !hasSeenPricingPage) {
-      const saveFirstTimeRedirect = async () => {
-        try {
-          const formData = new FormData();
-          formData.append("action", "save_first_time_redirect");
-          
-          await fetch(window.location.pathname, {
-            method: "POST",
-            body: formData,
-          });
-          
-          console.log("First-time pricing redirect saved to database");
-        } catch (error) {
-          console.error("Failed to save first-time redirect:", error);
-        }
-      };
-
-      saveFirstTimeRedirect().then(() => {
-        window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
-      });
+      // Use fetcher to save first-time redirect status
+      const formData = new FormData();
+      formData.append("action", "save_first_time_redirect");
+      fetcher.submit(formData, { method: "POST" });
       
       console.log("First-time user redirected to pricing:", `${shop}/admin/charges/country-blocker-9/pricing_plans`);
-    } else if (redirectToBilling && hasSeenPricingPage) {
-      // Only redirect for billing if user has already seen pricing page
+      
+      // Redirect to pricing page
       window.open(`${shop}/admin/charges/country-blocker-9/pricing_plans`, "_top");
-      console.log("Billing redirect:", `${shop}/admin/charges/country-blocker-9/pricing_plans`);
     }
-  }, [isFirstTimeUser, hasSeenPricingPage, redirectToBilling, shop]);
+  }, [isFirstTimeUser, hasSeenPricingPage, redirectToBilling, shop, fetcher]);
 
   // Save progress to localStorage
   useEffect(() => {
@@ -438,6 +423,15 @@ export default function Index() {
     }
   }, [actionData, app]); // Changed from actionData?.success to actionData to prevent multiple triggers
 
+  // Handle fetcher responses for first-time user actions
+  useEffect(() => {
+    if (fetcher.data?.success && fetcher.data?.message) {
+      app.toast.show(fetcher.data.message, { isError: false });
+    } else if (fetcher.data?.error) {
+      app.toast.show(`Error: ${fetcher.data.error}`, { isError: true });
+    }
+  }, [fetcher.data, app]);
+
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const taskBoxStyles = `
   .task-box {
@@ -541,8 +535,9 @@ export default function Index() {
                       onClick={() => {
                         const formData = new FormData();
                         formData.append("action", "save_first_time_redirect");
-                        submit(formData, { method: "POST" });
+                        fetcher.submit(formData, { method: "POST" });
                       }}
+                      loading={fetcher.state === "submitting"}
                     >
                       Mark as Seen Pricing Page
                     </Button>
@@ -554,8 +549,9 @@ export default function Index() {
                       onClick={() => {
                         const formData = new FormData();
                         formData.append("action", "reset_first_time_user");
-                        submit(formData, { method: "POST" });
+                        fetcher.submit(formData, { method: "POST" });
                       }}
+                      loading={fetcher.state === "submitting"}
                     >
                       Reset to First-Time User
                     </Button>
